@@ -3,11 +3,13 @@ agp = "9.1.0"
 coreKtx = "1.18.0"
 ezxhelper = "3.1.1-rc1"
 newxposed = "101.0.0"
+libxposedService = "101.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 ezxhelper-core = { group = "io.github.kyuubiran.ezxhelper", name = "core", version.ref = "ezxhelper" }
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "newxposed" }
+libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
