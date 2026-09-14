@@ -1,11 +1,14 @@
 package com.owo233.fuckmarketads.hooks.market
 
 import com.owo233.fuckmarketads.HookEnv
+import com.owo233.fuckmarketads.Settings
 import com.owo233.fuckmarketads.init.BaseHook
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
 object MiscApply : BaseHook() {
+
+    override val prefKey: String = Settings.KEY_MISC
 
     override val name: String
         get() = "部分细节处理"

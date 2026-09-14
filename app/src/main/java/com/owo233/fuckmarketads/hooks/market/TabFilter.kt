@@ -1,12 +1,15 @@
 package com.owo233.fuckmarketads.hooks.market
 
 import com.owo233.fuckmarketads.HookEnv
+import com.owo233.fuckmarketads.Settings
 import com.owo233.fuckmarketads.init.BaseHook
 import io.github.kyuubiran.ezxhelper.core.finder.FieldFinder.`-Static`.fieldFinder
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
 object TabFilter : BaseHook() {
+
+    override val prefKey: String = Settings.KEY_TAB_FILTER
 
     private val keepPrefixes by lazy {
         /**

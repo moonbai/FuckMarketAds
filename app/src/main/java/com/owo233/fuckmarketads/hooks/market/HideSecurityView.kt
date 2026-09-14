@@ -2,12 +2,18 @@ package com.owo233.fuckmarketads.hooks.market
 
 import android.view.View
 import com.owo233.fuckmarketads.HookEnv
+import com.owo233.fuckmarketads.Settings
 import com.owo233.fuckmarketads.init.BaseHook
 import io.github.kyuubiran.ezxhelper.core.finder.ConstructorFinder.`-Static`.constructorFinder
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
 object HideSecurityView : BaseHook() {
+
+    override val prefKey: String = Settings.KEY_SECURITY
+
+    override val name: String
+        get() = "隐藏应用安全检查视图"
 
     override fun init() {
         ClassUtil.loadClass(
@@ -30,7 +36,4 @@ object HideSecurityView : BaseHook() {
             }
         }
     }
-
-    override val name: String
-        get() = "隐藏应用安全检查视图"
 }
