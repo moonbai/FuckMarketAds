@@ -11,6 +11,21 @@
 -keep class com.owo233.fuckmarketads.App { *; }
 -keep class com.owo233.fuckmarketads.MainActivity { *; }
 
+# Compose / MiuiX
+# 本项目开启了 -repackageclasses 与 -overloadaggressively，
+# 显式保留 @Composable 成员与 Compose 编译器生成的 ComposableSingletons，避免 Release 包崩。
+-keepclassmembers class * {
+    @androidx.compose.runtime.Composable <methods>;
+}
+-keepclassmembers class **$ComposableSingletons {
+    public <fields>;
+}
+-dontwarn androidx.compose.**
+-dontwarn org.jetbrains.compose.**
+-dontwarn top.yukonga.miuix.kmp.**
+-dontwarn com.materialkolor.**
+-dontwarn org.jetbrains.skiko.**
+
 # Kotlin
 -assumenosideeffects class kotlin.jvm.internal.Intrinsics {
 	public static void check*(...);

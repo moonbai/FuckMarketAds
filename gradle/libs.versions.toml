@@ -1,15 +1,32 @@
 [versions]
 agp = "9.1.0"
+# AGP 9 内置 Kotlin，但内置版本低于 MiuiX 的编译版本（2.4.x），
+# 这里显式声明 KGP 版本：既是编译所用的 Kotlin，也是 Compose 编译器插件的版本。
+kotlin = "2.4.20"
 coreKtx = "1.18.0"
+activityCompose = "1.13.0"
+# Compose Multiplatform 坐标：Android 变体会自动落到对应的 androidx.compose 构件
+composeMultiplatform = "1.11.1"
+miuix = "0.9.3"
 ezxhelper = "3.1.1-rc1"
 newxposed = "101.0.0"
 libxposedService = "101.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+compose-runtime = { group = "org.jetbrains.compose.runtime", name = "runtime", version.ref = "composeMultiplatform" }
+compose-foundation = { group = "org.jetbrains.compose.foundation", name = "foundation", version.ref = "composeMultiplatform" }
+compose-ui = { group = "org.jetbrains.compose.ui", name = "ui", version.ref = "composeMultiplatform" }
+
+miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui", version.ref = "miuix" }
+miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference", version.ref = "miuix" }
+
 ezxhelper-core = { group = "io.github.kyuubiran.ezxhelper", name = "core", version.ref = "ezxhelper" }
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "newxposed" }
 libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

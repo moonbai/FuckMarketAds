@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -12,6 +13,7 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     defaultConfig {
@@ -46,7 +48,18 @@ android {
 }
 
 dependencies {
+    // Jetpack Compose
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+
+    // MiuiX（小米 HyperOS 风格的 Compose 组件库）
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.preference)
+
+    // Xposed / Hook
     compileOnly(libs.libxposed.api)
     implementation(libs.libxposed.service)
     implementation(libs.ezxhelper.core)
