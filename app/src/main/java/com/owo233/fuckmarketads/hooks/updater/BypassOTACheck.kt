@@ -1,11 +1,14 @@
 package com.owo233.fuckmarketads.hooks.updater
 
 import com.owo233.fuckmarketads.HookEnv
+import com.owo233.fuckmarketads.Settings
 import com.owo233.fuckmarketads.init.BaseHook
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
 object BypassOTACheck : BaseHook() {
+
+    override val prefKey: String = Settings.KEY_OTA
 
     private const val FEATURE_SUPPORT_OTA_VALIDATE = "support_ota_validate"
     private const val FEATURE_SUPPORT_UPDATE_FROM_SDCARD = "support_update_from_sdcard"

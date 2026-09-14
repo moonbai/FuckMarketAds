@@ -12,6 +12,15 @@ abstract class BaseHook {
 
     abstract fun init()
 
+    /**
+     * 该功能对应的开关 key（见 [com.owo233.fuckmarketads.Settings]）。
+     * 为 null 表示不受开关控制、始终启用（如纯测试 hook）。
+     */
+    open val prefKey: String? = null
+
+    /** 开关的默认值：绝大多数功能默认开启 */
+    open val defaultEnabled: Boolean = true
+
     fun setParam(param: XposedModuleInterface.PackageReadyParam) {
         this.param = param
     }
