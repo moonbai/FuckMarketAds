@@ -30,15 +30,12 @@ object BypassOTACheck : BaseHook() {
                 .filterByName("hasFeature")
                 .filterByParamCount(2)
                 .filterByParamTypes(String::class.java, Int::class.javaPrimitiveType)
-                .single().also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        when (chain.args[0] as String) {
-                            FEATURE_SUPPORT_OTA_VALIDATE -> return@intercept false
-                            FEATURE_SUPPORT_UPDATE_FROM_SDCARD -> return@intercept true
-                        }
-
-                        return@intercept chain.proceed()
+                .single().hooked {
+                    when (args[0] as String) {
+                        FEATURE_SUPPORT_OTA_VALIDATE -> return@hooked false
+                        FEATURE_SUPPORT_UPDATE_FROM_SDCARD -> return@hooked true
                     }
+                    return@hooked proceed()
                 }
 
             /**
@@ -53,14 +50,11 @@ object BypassOTACheck : BaseHook() {
                 .filterByName("getBoolean")
                 .filterByParamCount(2)
                 .filterByParamTypes(String::class.java, Boolean::class.javaPrimitiveType)
-                .single().also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        when (chain.args[0] as String) {
-                            FEATURE_SUPPORT_UPDATE_FROM_SDCARD -> return@intercept true
-                        }
-
-                        return@intercept chain.proceed()
+                .single().hooked {
+                    when (args[0] as String) {
+                        FEATURE_SUPPORT_UPDATE_FROM_SDCARD -> return@hooked true
                     }
+                    return@hooked proceed()
                 }
         }
     }

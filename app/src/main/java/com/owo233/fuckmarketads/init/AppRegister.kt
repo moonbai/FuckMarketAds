@@ -13,11 +13,12 @@ abstract class AppRegister : XposedModuleInterface {
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {}
 
     /**
-     * 统一安装一组 hook，并在安装前根据开关决定是否跳过。
+     * 统一安装一组 hook。
      *
-     * 修复点：
-     *  - 总开关 [Settings.KEY_MASTER] 关闭时，直接全部跳过；
-     *  - 每个 hook 通过 [BaseHook.prefKey] 对应的开关控制，关闭则跳过该 hook；
+     * 开关策略（修复“子开关不生效”）：
+     *  - 总开关 [Settings.KEY_MASTER] 关闭时，直接全部跳过（性能 + 全局兜底）；
+     *  - 各功能开关【不再】在安装期判断，而是在每个拦截点内部通过 [BaseHook.enabled]
+     *    实时读取，因此用户在主页切换子开关后无需重启被 hook 的应用即可生效；
      *  - 单个 hook 抛异常只会影响它自己（被 onFailure 捕获并记日志），
      *    不会再像以前那样因为某处失败而中断整段 init，从而避免“一个功能失效拖垮其他功能”。
      */
@@ -35,12 +36,6 @@ abstract class AppRegister : XposedModuleInterface {
         hooks.forEach { hook ->
             runCatching {
                 if (hook.isInit) return@runCatching
-                if (hook.prefKey != null &&
-                    !Settings.isEnabled(hook.prefKey!!, hook.defaultEnabled)
-                ) {
-                    HookEnv.base.log(Log.INFO, TAG, "功能开关关闭，跳过: ${hook.name}", null)
-                    return@runCatching
-                }
                 hook.setParam(param)
                 hook.init()
                 hook.isInit = true
