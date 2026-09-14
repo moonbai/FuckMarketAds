@@ -69,7 +69,7 @@
 - 顶栏推广位清理采用“黑白名单 + 结构启发式（abNormal 特殊图标）”双判定，并在“同组存在白名单成员”时才启用默认拒绝，避免旧版本结构被误杀；永远不会把顶栏清空。
 
 ## 致谢
-- [NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds)提供原始代码
+- [callng/NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds)提供原始代码
 
 - [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的稳定性增强与超级岛 / 推广位清理思路
 
