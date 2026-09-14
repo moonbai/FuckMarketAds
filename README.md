@@ -1,8 +1,8 @@
-# Fuck Market Ads
-> 应用商店去广告 LSPosed 模块，基于 `moonbai/FuckMarketAds` 进行重构与功能扩展，整体由 AI 辅助构建 / 优化。
+# MiMarketPurify
+> 小米应用商店净化与增强 LSPosed 模块，基于 `callng/FuckMarketAds` 进行重构与功能扩展，整体由 AI 辅助构建 / 优化。
 
 ## 项目介绍
-本项目是对原版应用商店去广告模块的深度增强重构版本，在保留 Hook 应用商店渲染逻辑实现去广告的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期存在的开关需要重启、子开关不生效的缺陷。
+本项目是对原版应用商店去广告模块的深度增强重构版本，在保留 Hook 应用商店渲染逻辑实现净化的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期存在的开关需要重启、子开关不生效的缺陷。
 
 模块无联网、无后台上报，仅在目标应用商店进程内生效，旨在打造干净、无广告、无营销活动、可高度自定义的纯净应用商店体验。
 
@@ -46,7 +46,7 @@
 
 | 分组 | 包含开关 |
 | --- | --- |
-| 广告移除 | 开屏广告、前台广告/推荐、信息流广告低栏、搜索推荐、升级/下载推荐、详情页广告、榜单广告 |
+| 广告移除 | 开屏广告、前台广告/推荐、主页信息流广告、搜索推荐、升级/下载推荐、详情页广告、榜单广告 |
 | 界面净化 | 应用安全检测、领水果入口、底部标签栏筛选、云控推广位清理 |
 | 功能增强 | 下载超级岛 |
 | 细节修正 | 非正版 APP / 被隐藏更新等细节处理 |
@@ -91,7 +91,7 @@
 - 顶栏推广位清理采用“黑白名单 + 结构启发式（abNormal 特殊图标）”双判定，并在“同组存在白名单成员”时才启用默认拒绝，避免旧版本结构被误杀；永远不会把顶栏清空
 
 ## 致谢
-- [callng/NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds) 提供原始代码
+- [callng/FuckMarketAds](https://github.com/callng/FuckMarketAds) 提供原始代码
 - [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的稳定性增强与超级岛
 - [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix) 提供 HyperOS 风格的 Compose 组件库
 
