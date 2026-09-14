@@ -1,14 +1,13 @@
-# Fuck Market Ads（应用商店去广告）
+# Fuck Market Ads
+> 应用商店去广告 LSPosed 模块，基于 `moonbai/FuckMarketAds` 进行重构与功能扩展，整体由 AI 辅助构建 / 优化。
 
-> 基于原仓库 `moonbai/FuckMarketAds` 进行重构与功能扩展，整体由 **AI 辅助构建 / 优化**：
-> 在保留原有“挂钩应用商店核心逻辑去广告”思路的基础上，补齐了**程序主页与各功能开关**、**榜单广告移除**、**领水果入口屏蔽**、**桌面图标隐藏**等能力，并对原有“部分开关不生效”的问题做了运行时实时受控的修复。
->
-> 近期参考 [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的增强思路，补充移植了其中的
-> **强制启用下载超级岛**、**防崩溃自毁 / 崩溃计数器重置**、**商店配置备份与回滚恢复**，
-> 以及**首页顶栏云控推广位（看剧 / 短剧等）清理**逻辑，同时保留本项目原有的可勾选式标签栏设计。
+## 项目介绍
+本项目是对原版应用商店去广告模块的深度增强重构版本，在保留 Hook 应用商店渲染逻辑实现去广告的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期存在的开关需要重启、子开关不生效的缺陷。
 
-## 功能 / Features
+模块无联网、无后台上报，仅在目标应用商店进程内生效，旨在打造干净、无广告、无营销活动、可高度自定义的纯净应用商店体验。
 
+## 功能特性
+### 全场景广告屏蔽
 - 移除开屏广告
 - 禁止切换前台展示广告 / 推荐
 - 隐藏信息流广告低栏（视频 / 应用推荐、热词）
@@ -16,26 +15,29 @@
 - 移除应用升级页与下载页的软件推荐
 - 移除应用详情页的广告、评论与推荐
 - **移除「榜单」界面广告 / 推广卡片**
-- 隐藏应用安全检测视图
-- **强制启用下载超级岛**（无视服务端灰度，让下载进度进入小米超级岛；可单独开关）
-- 精简底部标签栏（可勾选保留 首页 / 我的 / 视频号 / 智能体 / 应用号 / 游戏 / 榜单，其余隐藏）
 - **清理首页顶栏云控推广位**（「看剧」「短剧」等推广 subTab，以及换马甲的新增云控位）
-- 细节修正（显示非正版 APP、被隐藏更新等）
+
+### 界面精简与自定义
 - **屏蔽「领水果」活动入口**（隐藏福利 gif 动图入口 `entrance_gif`）
-- **隐藏桌面图标**（隐藏后仅可通过 LSPosed 模块列表重新进入）
+- 隐藏应用安全检测视图
+- 精简底部标签栏（可勾选保留 首页 / 我的 / 视频号 / 智能体 / 应用号 / 游戏 / 榜单，其余隐藏）
+- 细节修正（显示非正版 APP、被隐藏更新等）
 
-### 稳定性增强（参考 lisrain Fork）
+### 功能增强
+- **强制启用下载超级岛**（无视服务端灰度，让下载进度进入小米超级岛；可单独开关）
 
+### 稳定性增强
 以下能力为**纯保护性安全网**，不受单个功能开关控制，仅由总开关统一门控：
-
 - **防止崩溃自毁**：拦截商店在连续崩溃后删除自身的机制（`PackageManagerCompat.deletePackage` 针对自身包名时阻断）；
 - **打破回滚死锁**：让 `SelfUpdateService.isValidVersion()` 始终为真，即使商店被回滚到旧版本也能正常更新回来；
 - **重置崩溃计数器**：hook 初始化时清空商店的异常计数（`uncaught_exception_file`），从源头消除自毁触发条件；
 - **配置备份与回滚恢复**：自动备份商店关键 SharedPreferences，检测到配置被回滚 / 清空后自动恢复；
-- **全局容错**：所有 hook 点均带 try-catch，单个 hook 失败不影响其余功能。
+- **全局容错**：所有 hook 点均带 try‑catch，单个 hook 失败不影响其余功能。
 
-## 程序主页与功能开关 / UI & Toggles
+### 模块自身能力
+- **隐藏桌面图标**（隐藏后仅可通过 LSPosed 模块列表重新进入）
 
+## 程序主页与功能开关
 模块自带一个 **主页（MainActivity）**，打开后可看到：
 
 - **框架激活状态**：是否已被 LSPosed 等框架加载、是否支持远程偏好；
@@ -45,34 +47,32 @@
 | 分组 | 包含开关 |
 | --- | --- |
 | 广告移除 | 开屏广告、前台广告/推荐、信息流广告低栏、搜索推荐、升级/下载推荐、详情页广告、榜单广告 |
-| 界面净化 | 应用安全检测、领水果入口、底部标签栏筛选（含云控推广位清理） |
+| 界面净化 | 应用安全检测、领水果入口、底部标签栏筛选、云控推广位清理 |
 | 功能增强 | 下载超级岛 |
 | 细节修正 | 非正版 APP / 被隐藏更新等细节处理 |
 | 模块自身 | 隐藏桌面图标 |
 
 - 「筛选底部标签栏」下方提供**多选列表**：勾选要保留的标签，未勾选的会被隐藏；
-- 界面适配 **edge-to-edge**：手动处理系统栏 / 刘海内边距，避免顶部内容被状态栏遮挡。
+- 界面适配 **edge‑to‑edge**：由 Miuix 的 `Scaffold` 统一消费系统栏 / 刘海 insets 并下发给内容区 `PaddingValues`，避免顶部内容被状态栏遮挡；
+- 主页整体采用 **Jetpack Compose + MiuiX**（`Scaffold` / `TopAppBar` / `Card` / `SmallTitle` / `SwitchPreference` / `CheckboxPreference`），跟随系统深浅色自动切换日间 / 夜间配色。
 
 ## 开关何时生效（重要）
-
 每个功能开关都在对应 hook 的**每次调用时实时读取**远程偏好，因此：
 
 - 在模块主页拨动任意开关后，**一般无需手动重启**目标应用（远程偏好写入后实时同步，下一次相关界面加载即生效）；
-- 若个别 ROM / 框架版本对远程偏好做了快照缓存，重启一次目标应用（小米应用商店）即可确保生效；
-- 总开关为全局兜底：关闭后所有 hook 在加载期即跳过。
+- 若个别 ROM / 框架版本对远程偏好做了快照缓存，重启一次小米应用商店即可确保生效；
+- 总开关为全局兜底，关闭后所有 Hook 在加载期直接跳过。
 
 > 早期版本把子开关放在“安装期”判断，导致拨动子开关必须重启应用才生效（表现即“子开关无效”）。现已改为运行时实时受控。
 
 ## 关于“隐藏桌面图标”
-
-开启后，模块只会**停用桌面入口的 activity-alias（`.LauncherAlias`）**，启动器抽屉中不再显示图标；
+开启后，模块只会**停用桌面入口的 activity‑alias（`.LauncherAlias`）**，启动器抽屉中不再显示图标；
 而真实的 `MainActivity` 始终保持启用，因此 **LSPosed / 框架的模块列表仍可正常打开本模块主页**。
 
 原理上把“桌面可见”与“框架可解析”彻底拆开：
 
 - `MainActivity` 注册 `ACTION_MAIN` + `CATEGORY_INFO`（另含传统 `de.robv.android.xposed.category.MODULE_SETTINGS`）；
-  该类目不会出现在桌面抽屉，但 `PackageManager.getLaunchIntentForPackage()` 的解析顺序是
-  **先查 `MAIN+INFO`、查不到才回退 `MAIN+LAUNCHER`**，所以框架依然能取到入口 Intent；
+  该类目不会出现在桌面抽屉，但框架可正常获取模块设置入口；
 - `.LauncherAlias` 单独承载 `MAIN+LAUNCHER`，隐藏 / 恢复操作只作用于它。
 
 重新进入与恢复方式：
@@ -82,21 +82,20 @@
   `MY_PACKAGE_REPLACED` 自动把入口重新启用，无需额外操作。
 
 ## 技术说明
+- Hook 框架：libxposed 101.0.0 + ezXHelper
+- 主页 UI：Jetpack Compose（Kotlin Compose Compiler 2.4.20）+ MiuiX（`miuix-ui` / `miuix-preference`），无 Material3 / 无 AppCompat 依赖
+- 构建环境：AGP 9.1.0（内置 Kotlin）+ JDK 21 + `compileSdk 36` / `minSdk 29`
+- 配置同步：libxposed 远程偏好（Remote Preferences），模块 App 侧写入，Hook 进程内读取，固定 group 为 `settings`
+- 广告识别：针对应用商店组件化渲染的特点，命中组件关键字（`VideoList` / `Apps` / `ad` / `banner` / `recommend` 等）后隐藏对应容器
+- 特殊页面：榜单、领水果等界面采用多候选类名 + 优雅降级策略，类名不存在时静默跳过，不因为类名变更直接崩溃
+- 顶栏推广位清理采用“黑白名单 + 结构启发式（abNormal 特殊图标）”双判定，并在“同组存在白名单成员”时才启用默认拒绝，避免旧版本结构被误杀；永远不会把顶栏清空
 
-- 挂钩框架：libxposed 101.0.0 + ezXHelper；
-- 开关同步：libxposed **远程偏好（Remote Preferences）**，模块 App 侧写入、hook 进程内读取（group 固定 `settings`）；
-- 广告识别：针对应用商店组件化渲染的特点，命中组件类型关键字（如 `VideoList` / `Apps` / `ad` / `banner` / `recommend` 等）即隐藏其容器；
-- 榜单 / 领水果等界面采用“多候选类 + 优雅降级”，类名不存在时静默跳过，不影响其余功能；
-- 顶栏推广位清理采用“黑白名单 + 结构启发式（abNormal 特殊图标）”双判定，并在“同组存在白名单成员”时才启用默认拒绝，避免旧版本结构被误杀；永远不会把顶栏清空。
+## 致谢
+- [callng/NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds) 提供原始代码
+- [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的稳定性增强与超级岛
+- [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix) 提供 HyperOS 风格的 Compose 组件库
 
-## 致谢 / Thanks
-
-- [ezXHelper](https://github.com/KyuubiRan/EzXHelper)
-- 原仓库 `moonbai/FuckMarketAds` 的去广告思路
-- [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的稳定性增强与超级岛 / 推广位清理思路
-
-## 免责声明 / Disclaimer
-
+## 免责声明
 本项目仅为技术研究成果，请勿用于商业或违反平台规则的场景。使用本模块产生的一切风险（如应用商店功能异常、设备故障等）均由使用者自行承担。
 
 所有开发工作均以技术学习与研究为目的，请勿将本项目用于任何非法、盈利性用途，开发者不对违规使用产生的后果负责。
