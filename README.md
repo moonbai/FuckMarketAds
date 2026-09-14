@@ -54,7 +54,10 @@
 
 ## 致谢 / Thanks
 
-- [ezXHelper](https://github.com/KyuubiRan/EzXHelper) [NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds)
+
+- [ezXHelper](https://github.com/KyuubiRan/EzXHelper) 
+
+- [NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds)
 
 ## 免责声明 / Disclaimer
 
