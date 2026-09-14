@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.owo233.fuckmarketads"
+    namespace = "com.mars.mimarketpurify"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -15,11 +15,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.owo233.fuckmarketads"
+        applicationId = "com.mars.mimarketpurify"
         minSdk = 29
         targetSdk = 36
-        versionCode = 27
-        versionName = "1.3.0"
+        versionCode = 1
+        versionName = "1.0"
         buildConfigField("String", "APP_NAME", "\"Fuck Market Ads\"")
     }
 
