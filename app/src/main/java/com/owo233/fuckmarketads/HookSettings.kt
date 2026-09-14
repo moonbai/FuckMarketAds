@@ -1,5 +1,6 @@
 package com.owo233.fuckmarketads
 
+import android.app.ActivityThread
 import android.content.Context
 
 object HookSettings {
@@ -36,9 +37,15 @@ object HookSettings {
         }
     }
 
-    fun isEnabled(context: Context, key: String): Boolean {
-        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .getBoolean(key, true)
+    // 不需要 Context 参数，直接读文件
+    fun isEnabled(key: String): Boolean {
+        try {
+            val app = ActivityThread.currentApplication() ?: return true
+            val prefs = app.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(key, true)
+        } catch (e: Exception) {
+            return true
+        }
     }
 
     fun setEnabled(context: Context, key: String, enabled: Boolean) {
