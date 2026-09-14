@@ -34,7 +34,7 @@ val CATEGORIES: List<Category> = listOf(
         "广告移除", "拦截商店各处的广告与软件推荐", listOf(
             Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告"),
             Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗"),
-            Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告低栏", "隐藏主页底部视频/应用推荐与热词栏"),
+            Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏"),
             Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果中的软件推荐"),
             Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐"),
             Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位"),
