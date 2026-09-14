@@ -95,6 +95,7 @@ object AntiSelfDestruct : BaseHook() {
      * 重置商店的崩溃计数器（uncaught_exception_file 中的 exceptionTimes_<versionCode>）。
      * 计数器过高会触发商店自我卸载，这里在 hook 初始化时清零，从源头阻断自毁。
      */
+    @Suppress("DEPRECATION") // versionCode 在高版本仍有值（minSdk 29），此处按 int 使用即可
     private fun resetCrashCounter() {
         try {
             val atClass = Class.forName("android.app.ActivityThread")

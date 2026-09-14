@@ -13,7 +13,7 @@
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="4"
-        android:strokeLinecap="round"
+        android:strokeLineCap="round"
         android:pathData="M42,56 v-10 a14,14 0 0 1 28,0 v10" />
     <!-- 禁止符号：深底圆盘 + 白色斜杠（表示“禁止广告”） -->
     <path
@@ -23,6 +23,6 @@
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="5"
-        android:strokeLinecap="round"
+        android:strokeLineCap="round"
         android:pathData="M63,29 L85,51" />
 </vector>
