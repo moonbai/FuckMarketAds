@@ -6,6 +6,7 @@ import com.owo233.fuckmarketads.hooks.market.RemoveAds
 import com.owo233.fuckmarketads.hooks.market.TabFilter
 import com.owo233.fuckmarketads.init.AppPackage
 import com.owo233.fuckmarketads.init.AppRegister
+import com.owo233.fuckmarketads.HookSettings
 import io.github.libxposed.api.XposedModuleInterface
 
 object Market : AppRegister() {
@@ -14,10 +15,11 @@ object Market : AppRegister() {
         get() = AppPackage.MARKET
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
+        HookSettings.init(HookEnv.base)
         autoInitHooks(
             param,
             HideSecurityView,
-            TabFilter,
+            TaFilter,
             RemoveAds,
             MiscApply
         )
