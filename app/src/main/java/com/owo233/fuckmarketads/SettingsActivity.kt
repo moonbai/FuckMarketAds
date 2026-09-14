@@ -51,27 +51,46 @@ class SettingsActivity : Activity() {
         content.addView(info)
         content.addView(spacer())
 
-        val sectionTitle = TextView(this)
-        sectionTitle.text = "功能开关"
-        sectionTitle.textSize = 14f
-        sectionTitle.setTextColor(Color.parseColor("#1565C0"))
-        sectionTitle.typeface = Typeface.DEFAULT_BOLD
-        sectionTitle.setPadding(dp(4), 0, dp(4), dp(8))
-        content.addView(sectionTitle)
-
+        // 基础功能
+        sectionTitle(content, "基础功能")
         content.addView(switchRow("隐藏应用安全检查", "隐藏应用安装时的安全检查弹窗", HookSettings.KEY_HIDE_SECURITY))
         content.addView(divider())
         content.addView(switchRow("部分细节处理", "非正版APP重新显示到更新列表", HookSettings.KEY_MISC_APPLY))
         content.addView(divider())
-        content.addView(switchRow("移除广告", "开屏广告、底部栏、搜索推荐等", HookSettings.KEY_REMOVE_ADS))
-        content.addView(divider())
         content.addView(switchRow("显示被隐藏的更新", "解锁商店隐藏的Tab和更新", HookSettings.KEY_TAB_FILTER))
         content.addView(divider())
         content.addView(switchRow("禁用OTA验证", "禁用系统更新验证", HookSettings.KEY_BYPASS_OTA))
+        content.addView(spacer())
+
+        // 广告拦截
+        sectionTitle(content, "广告拦截（逐项控制）")
+        content.addView(switchRow("开屏广告", "拦截应用商店开屏广告", HookSettings.KEY_ADS_SPLASH))
+        content.addView(divider())
+        content.addView(switchRow("搜索页推荐广告", "搜索页底部推荐和搜索建议广告", HookSettings.KEY_ADS_SEARCH))
+        content.addView(divider())
+        content.addView(switchRow("搜索结果广告", "搜索结果列表中的推荐广告", HookSettings.KEY_ADS_SEARCH_RESULT))
+        content.addView(divider())
+        content.addView(switchRow("更新页推荐广告", "应用更新页面的软件推荐", HookSettings.KEY_ADS_UPDATE))
+        content.addView(divider())
+        content.addView(switchRow("详情页广告", "应用详情页的评论推荐和广告", HookSettings.KEY_ADS_DETAIL))
+        content.addView(divider())
+        content.addView(switchRow("视频列表", "隐藏详情页横向视频推荐列表", HookSettings.KEY_ADS_VIDEO))
+        content.addView(divider())
+        content.addView(switchRow("热词", "隐藏搜索热词推荐", HookSettings.KEY_ADS_HOTWORD))
 
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
+    }
+
+    private fun sectionTitle(parent: LinearLayout, text: String) {
+        val t = TextView(this)
+        t.text = text
+        t.textSize = 14f
+        t.setTextColor(Color.parseColor("#1565C0"))
+        t.typeface = Typeface.DEFAULT_BOLD
+        t.setPadding(dp(4), 0, dp(4), dp(8))
+        parent.addView(t)
     }
 
     private fun switchRow(title: String, desc: String, key: String): LinearLayout {
