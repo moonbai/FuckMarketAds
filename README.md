@@ -84,7 +84,7 @@
 ## 技术说明
 - Hook 框架：libxposed 101.0.0 + ezXHelper
 - 主页 UI：原生 View 手写布局，零 UI 框架依赖（不依赖 Compose / AppCompat / Material）
-- 分支说明：本仓库的 [`miuix分支`](https://github.com/moonbai/FuckMarketAds/tree/miuix) 曾用 Jetpack Compose + MiuiX（HyperOS 风格组件库）重写主页；因引入 Compose 运行时会使安装包体积明显增大，主分支不采用，仅在该分支保留供参考
+- 分支说明：本仓库的 [`miuix分支`](https://github.com/moonbai/MiMarketPurify/tree/miuix) 曾用 Jetpack Compose + MiuiX（HyperOS 风格组件库）重写主页；因引入 Compose 运行时会使安装包体积明显增大，主分支不采用，仅在该分支保留供参考
 - 构建环境：AGP 9.1.0（内置 Kotlin）+ JDK 21 + `compileSdk 36` / `minSdk 29`
 - 配置同步：libxposed 远程偏好（Remote Preferences），模块 App 侧写入，Hook 进程内读取，固定 group 为 `settings`
 - 广告识别：针对应用商店组件化渲染的特点，命中组件关键字（`VideoList` / `Apps` / `ad` / `banner` / `recommend` 等）后隐藏对应容器
