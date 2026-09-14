@@ -11,7 +11,7 @@ import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFi
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
 /**
- * 隐藏主页信息流广告低栏 / 热词栏。
+ * 隐藏主页信息流广告 / 热词栏。
  *
  *  - ListAppsView.onBindData：隐藏 "VideoList" / "Apps" 类型的推荐组件；
  *  - VerticalHotWordsView.onBindData：隐藏热词容器。
@@ -21,7 +21,7 @@ object HomeFeed : BaseHook() {
     override val prefKey: String = Settings.KEY_HOME_FEED
 
     override val name: String
-        get() = "隐藏信息流广告低栏"
+        get() = "隐藏信息流广告"
 
     override fun init() {
         runCatching {
