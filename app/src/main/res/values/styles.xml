@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        主页不使用系统 ActionBar：标题由界面自行绘制，避免与总开关行发生遮挡。
+        同时声明透明系统栏 + 深色状态栏图标，配合 MainActivity 中的 WindowInsets 处理，
+        保证 targetSdk 36 下的 edge-to-edge 场景中内容不会被状态栏 / 导航栏盖住。
+    -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFF2F2F7</item>
+        <item name="android:colorPrimary">#FFFF6B35</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+</resources>

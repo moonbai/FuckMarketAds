@@ -1,22 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        关于「隐藏桌面图标」的实现要点（重要）：
+
+        旧实现直接禁用 MainActivity 自身，而它同时承载了 MAIN+LAUNCHER，
+        导致框架（LSPosed 等）也无法解析到任何入口，模块主页彻底进不去。
+
+        现在的拆分：
+          1. MainActivity 注册 MAIN + CATEGORY_INFO（外加 Xposed 遗留的 MODULE_SETTINGS）。
+             - CATEGORY_INFO 不会在桌面抽屉出现（桌面只认 LAUNCHER 类目）；
+             - 而 PackageManager.getLaunchIntentForPackage() 的解析顺序是
+               「先查 MAIN+INFO，查不到才回退 MAIN+LAUNCHER」，
+               因此框架仍能拿到指向 MainActivity 的 Intent，主页可正常打开；
+             - MainActivity 永远不被禁用。
+          2. .LauncherAlias 是单独的 activity-alias，唯一承载 MAIN+LAUNCHER，
+             隐藏 / 恢复桌面图标只切换这个 alias 的启用状态。
+
+        另外补充 EntryGuardReceiver：若用户此前已被旧版本锁出（MainActivity 处于禁用态），
+        覆盖安装时收到 MY_PACKAGE_REPLACED 会自动把 MainActivity 重新启用，完成自愈。
+    -->
     <application
         android:name=".App"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:description="@string/xposed_desc"
-        android:roundIcon="@mipmap/ic_launcher_round" >
+        android:roundIcon="@mipmap/ic_launcher_round">
 
+        <!-- 真实主页：对桌面不可见，但对框架可见 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:theme="@style/AppTheme"
             android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.INFO" />
+                <!-- 兼容传统 Xposed / 部分管理器的显式入口类目 -->
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+
+        <!-- 桌面入口：隐藏/恢复图标时只操作这个 alias -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="true"
+            android:theme="@style/AppTheme"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- 自愈：覆盖安装后确保主页入口处于启用状态，避免旧版本遗留的锁出 -->
+        <receiver
+            android:name=".EntryGuardReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
