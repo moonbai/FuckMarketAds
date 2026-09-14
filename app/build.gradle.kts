@@ -5,10 +5,11 @@ plugins {
 
 android {
     namespace = "com.owo233.fuckmarketads"
+    // MiuiX 0.9.3 的 AAR 元数据要求 minCompileSdk = 37，低于此值会在
+    // :app:checkDebugAarMetadata 阶段直接失败（报错会逐个列出 miuix-* 依赖）。
+    // targetSdk 仍保持 36，compileSdk 提高不影响运行期行为。
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     buildFeatures {
