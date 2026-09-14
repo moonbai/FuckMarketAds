@@ -108,7 +108,7 @@ jobs:
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v5
         with:
-          name: FuckMarketAds-debug
+          name: MiMarketPurify-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
           if-no-files-found: error

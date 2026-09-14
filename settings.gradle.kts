@@ -33,5 +33,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fuck Market Ads"
+rootProject.name = "MiMarketPurify"
 include(":app")
