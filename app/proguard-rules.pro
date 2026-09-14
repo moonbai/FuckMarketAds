@@ -6,6 +6,11 @@
     public void onSystemServerLoaded(...);
 }
 
+# libxposed service（模块 App 侧通过它写入远程偏好，需保留类名）
+-keep class io.github.libxposed.service.** { *; }
+-keep class com.owo233.fuckmarketads.App { *; }
+-keep class com.owo233.fuckmarketads.MainActivity { *; }
+
 # Kotlin
 -assumenosideeffects class kotlin.jvm.internal.Intrinsics {
 	public static void check*(...);

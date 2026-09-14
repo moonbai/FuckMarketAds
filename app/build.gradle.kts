@@ -18,8 +18,8 @@ android {
         applicationId = "com.owo233.fuckmarketads"
         minSdk = 29
         targetSdk = 36
-        versionCode = 26
-        versionName = "1.2.6"
+        versionCode = 27
+        versionName = "1.3.0"
         buildConfigField("String", "APP_NAME", "\"Fuck Market Ads\"")
     }
 
@@ -48,5 +48,6 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     compileOnly(libs.libxposed.api)
+    implementation(libs.libxposed.service)
     implementation(libs.ezxhelper.core)
 }
