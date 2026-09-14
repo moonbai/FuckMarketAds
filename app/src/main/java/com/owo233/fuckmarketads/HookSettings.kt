@@ -1,6 +1,5 @@
 package com.owo233.fuckmarketads
 
-import android.app.ActivityThread
 import android.content.Context
 
 object HookSettings {
@@ -18,7 +17,10 @@ object HookSettings {
     const val KEY_ADS_VIDEO = "ads_video"
     const val KEY_ADS_HOTWORD = "ads_hotword"
 
+    private var ctx: Context? = null
+
     fun init(context: Context) {
+        ctx = context.applicationContext
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(KEY_HIDE_SECURITY)) {
             prefs.edit()
@@ -37,19 +39,18 @@ object HookSettings {
         }
     }
 
-    // 不需要 Context 参数，直接读文件
     fun isEnabled(key: String): Boolean {
-        try {
-            val app = ActivityThread.currentApplication() ?: return true
-            val prefs = app.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            return prefs.getBoolean(key, true)
+        val c = ctx ?: return true
+        return try {
+            c.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).getBoolean(key, true)
         } catch (e: Exception) {
-            return true
+            true
         }
     }
 
-    fun setEnabled(context: Context, key: String, enabled: Boolean) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    fun setEnabled(key: String, enabled: Boolean) {
+        val c = ctx ?: return
+        c.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(key, enabled).apply()
     }
 }
