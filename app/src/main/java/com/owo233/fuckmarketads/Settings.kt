@@ -55,14 +55,14 @@ object Settings {
     /** 禁用 OTA 验证（系统更新） */
     const val KEY_OTA = "bypass_ota"
 
-    @Volatile
-    private var prefs: android.content.SharedPreferences? = null
-
+    /**
+     * 每次读取都重新获取远程偏好对象，避免持有进程内快照导致“开关改了不生效”。
+     * libxposed 的远程偏好本身支持跨进程实时更新，但不同版本行为不一，
+     * 这里选择每次即时读取，代价极小（仅在广告/推荐相关方法被调用时触发一次 provider 查询）。
+     */
     private fun getPrefs(): android.content.SharedPreferences? {
-        prefs?.let { return it }
         return runCatching {
             (HookEnv.base as XposedModule).getRemotePreferences(PREFS_GROUP)
-                .also { prefs = it }
         }.onFailure { e ->
             HookEnv.base.log(Log.WARN, TAG, "无法读取远程偏好（开关将使用默认值）: ${e.message}", null)
         }.getOrNull()
