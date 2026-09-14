@@ -4,12 +4,25 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="2.4"
-        android:scaleY="2.4"
-        android:translateX="34"
-        android:translateY="34">
-        <path
-            android:fillColor="#FF4D6D"
-            android:pathData="M30,18 L42,55 L18,55 Z" />
-    </group>
+    <!-- 购物袋主体（代表应用商店） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,56 h44 a6,6 0 0 1 6,6 v24 a6,6 0 0 1 -6,6 h-44 a6,6 0 0 1 -6,-6 v-24 a6,6 0 0 1 6,-6 z" />
+    <!-- 购物袋提手 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLinecap="round"
+        android:pathData="M42,56 v-10 a14,14 0 0 1 28,0 v10" />
+    <!-- 禁止符号：深底圆盘 + 白色斜杠（表示“禁止广告”） -->
+    <path
+        android:fillColor="#1F1F2E"
+        android:pathData="M58,40 a16,16 0 1 0 32,0 a16,16 0 1 0 -32,0 z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLinecap="round"
+        android:pathData="M63,29 L85,51" />
 </vector>

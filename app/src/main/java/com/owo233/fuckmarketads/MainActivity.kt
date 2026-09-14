@@ -1,6 +1,8 @@
 package com.owo233.fuckmarketads
 
 import android.app.Activity
+import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.widget.CheckBox
@@ -29,6 +31,8 @@ class MainActivity : Activity(), ServiceStateListener {
     /** 总开关与“筛选底部标签栏”开关的引用，用于级联控制勾选框可用状态 */
     private var masterSwitch: android.widget.Switch? = null
     private var tabFilterSwitch: android.widget.Switch? = null
+    /** “隐藏桌面图标”开关（独立于远程偏好，直接操作系统组件启用状态） */
+    private var hideIconSwitch: android.widget.Switch? = null
     /** “保留哪些标签”的勾选框列表 */
     private val tabChecks = mutableListOf<CheckBox>()
 
@@ -40,6 +44,7 @@ class MainActivity : Activity(), ServiceStateListener {
         Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果中的软件推荐", true),
         Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
         Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
+        Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片", true),
         Feature(Settings.KEY_SECURITY, "隐藏应用安全检测", "隐藏“我的”页中的应用安全检测视图", true),
         Feature(Settings.KEY_FRUIT, "屏蔽领水果入口", "隐藏福利活动 gif 动图入口（entrance_gif）", true),
         Feature(Settings.KEY_TAB_FILTER, "筛选底部标签栏", "勾选要保留的标签，其余隐藏", true),
@@ -74,6 +79,7 @@ class MainActivity : Activity(), ServiceStateListener {
         }
         container.addView(divider)
         features.forEach { buildFeatureRow(it) }
+        buildHideIconRow()
     }
 
     override fun onStart() {
@@ -117,6 +123,8 @@ class MainActivity : Activity(), ServiceStateListener {
                 cb.isChecked = t is String && kept.contains(t)
             }
             updateTabChecksEnabled()
+            // 刷新“隐藏桌面图标”开关的当前状态（直接读系统组件启用状态）
+            hideIconSwitch?.isChecked = isLauncherIconHidden()
         }
     }
 
@@ -261,6 +269,51 @@ class MainActivity : Activity(), ServiceStateListener {
             prefs.edit()?.putString(key, value)?.apply()
         }.onFailure {
             Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 构建“隐藏桌面图标”独立开关（不经过远程偏好，直接操作系统组件状态） */
+    private fun buildHideIconRow() {
+        val row = LayoutInflater.from(this)
+            .inflate(R.layout.item_switch, container, false)
+        row.findViewById<TextView>(R.id.title).text = "隐藏桌面图标"
+        row.findViewById<TextView>(R.id.summary).text = "隐藏后仅可通过 LSPosed 模块列表重新进入"
+        val sw = row.findViewById<android.widget.Switch>(R.id.switch_view)
+        sw.isChecked = isLauncherIconHidden()
+        sw.setOnCheckedChangeListener { _, isChecked ->
+            applyHideIcon(isChecked)
+        }
+        hideIconSwitch = sw
+        container.addView(row)
+    }
+
+    /** 当前 Launcher 图标是否已被隐藏（即主页组件被禁用） */
+    private fun isLauncherIconHidden(): Boolean {
+        val cn = ComponentName(this, MainActivity::class.java)
+        return packageManager.getComponentEnabledSetting(cn) ==
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    }
+
+    /** 隐藏 / 恢复桌面图标：禁用或启用本 Activity 的 Launcher 组件 */
+    private fun applyHideIcon(hide: Boolean) {
+        runCatching {
+            val cn = ComponentName(this, MainActivity::class.java)
+            val state = if (hide) {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            }
+            packageManager.setComponentEnabledSetting(
+                cn, state, PackageManager.DONT_KILL_APP
+            )
+            Toast.makeText(
+                this,
+                if (hide) "已隐藏桌面图标，可在 LSPosed 模块列表中重新进入"
+                else "已恢复桌面图标",
+                Toast.LENGTH_LONG
+            ).show()
+        }.onFailure {
+            Toast.makeText(this, "操作失败：${it.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

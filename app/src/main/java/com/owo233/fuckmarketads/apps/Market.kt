@@ -4,6 +4,7 @@ import com.owo233.fuckmarketads.hooks.market.DetailAds
 import com.owo233.fuckmarketads.hooks.market.HideSecurityView
 import com.owo233.fuckmarketads.hooks.market.HideFruitEntry
 import com.owo233.fuckmarketads.hooks.market.HomeFeed
+import com.owo233.fuckmarketads.hooks.market.RankAds
 import com.owo233.fuckmarketads.hooks.market.MainTabAds
 import com.owo233.fuckmarketads.hooks.market.MiscApply
 import com.owo233.fuckmarketads.hooks.market.SearchAds
@@ -31,6 +32,7 @@ object Market : AppRegister() {
             HideSecurityView,
             HideFruitEntry,
             TabFilter,
+            RankAds,
             MiscApply
         )
     }
