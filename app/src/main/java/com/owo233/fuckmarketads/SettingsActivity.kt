@@ -1,30 +1,32 @@
 package com.owo233.fuckmarketads
 
+import android.app.Activity
 import android.os.Bundle
 import android.view.MenuItem
 import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        setSupportActionBar(findViewById(R.id.toolbar))
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "Fuck Market Ads"
+        // 初始化开关设置（使用 Activity 自身的 Context）
+        HookSettings.init(this)
 
-        val context = HookEnv.base
-        HookSettings.init(context)
+        // 设置 Toolbar 返回按钮
+        val toolbar = findViewById<android.widget.Toolbar>(R.id.toolbar)
+        toolbar?.setNavigationOnClickListener { finish() }
 
-        setupSwitch(R.id.switch_hide_security, HookSettings.KEY_HIDE_SECURITY, "隐藏应用安全检查", context)
-        setupSwitch(R.id.switch_misc_apply, HookSettings.KEY_MISC_APPLY, "部分细节处理", context)
-        setupSwitch(R.id.switch_remove_ads, HookSettings.KEY_REMOVE_ADS, "移除广告", context)
-        setupSwitch(R.id.switch_tab_filter, HookSettings.KEY_TAB_FILTER, "显示被隐藏的更新", context)
-        setupSwitch(R.id.switch_bypass_ota, HookSettings.KEY_BYPASS_OTA, "禁用OTA验证", context)
+        // 绑定5个功能开关
+        setupSwitch(R.id.switch_hide_security, HookSettings.KEY_HIDE_SECURITY)
+        setupSwitch(R.id.switch_misc_apply, HookSettings.KEY_MISC_APPLY)
+        setupSwitch(R.id.switch_remove_ads, HookSettings.KEY_REMOVE_ADS)
+        setupSwitch(R.id.switch_tab_filter, HookSettings.KEY_TAB_FILTER)
+        setupSwitch(R.id.switch_bypass_ota, HookSettings.KEY_BYPASS_OTA)
 
+        // 显示版本号
         val versionText = findViewById<TextView>(R.id.tv_version)
         try {
             val pkgInfo = packageManager.getPackageInfo(packageName, 0)
@@ -34,11 +36,11 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupSwitch(switchId: Int, key: String, featureName: String, context: android.content.Context) {
+    private fun setupSwitch(switchId: Int, key: String) {
         val switch = findViewById<Switch>(switchId)
-        switch.isChecked = HookSettings.isEnabled(context, key)
+        switch.isChecked = HookSettings.isEnabled(this, key)
         switch.setOnCheckedChangeListener { _, isChecked ->
-            HookSettings.setEnabled(context, key, isChecked)
+            HookSettings.setEnabled(this, key, isChecked)
         }
     }
 
