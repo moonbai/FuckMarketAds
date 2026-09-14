@@ -76,8 +76,8 @@ object Settings {
     /** 细节修正（非正版 / 隐藏更新等） */
     const val KEY_MISC = "misc_apply"
 
-    /** 禁用 OTA 验证（系统更新） */
-    const val KEY_OTA = "bypass_ota"
+    /** 屏蔽「领水果」活动入口（gif 动图 ImageView：entrance_gif） */
+    const val KEY_FRUIT = "hide_fruit_entry"
 
     /**
      * 每次读取都重新获取远程偏好对象，避免持有进程内快照导致“开关改了不生效”。

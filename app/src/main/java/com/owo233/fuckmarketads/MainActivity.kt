@@ -41,9 +41,9 @@ class MainActivity : Activity(), ServiceStateListener {
         Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
         Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
         Feature(Settings.KEY_SECURITY, "隐藏应用安全检测", "隐藏“我的”页中的应用安全检测视图", true),
+        Feature(Settings.KEY_FRUIT, "屏蔽领水果入口", "隐藏福利活动 gif 动图入口（entrance_gif）", true),
         Feature(Settings.KEY_TAB_FILTER, "筛选底部标签栏", "勾选要保留的标签，其余隐藏", true),
         Feature(Settings.KEY_MISC, "细节修正", "显示非正版/被隐藏更新等细节处理", true),
-        Feature(Settings.KEY_OTA, "禁用 OTA 验证", "系统更新中禁用 OTA 校验（Updater）", true),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +54,7 @@ class MainActivity : Activity(), ServiceStateListener {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
+            setBackgroundColor(0xFFF2F2F7.toInt())
         }
         container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -66,8 +67,10 @@ class MainActivity : Activity(), ServiceStateListener {
         buildMasterSwitch()
         val divider = TextView(this).apply {
             text = "功能开关"
-            textSize = 13f
-            setPadding(0, dp(12), 0, dp(4))
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF8A8A8E.toInt())
+            setPadding(dp(4), dp(16), 0, dp(8))
         }
         container.addView(divider)
         features.forEach { buildFeatureRow(it) }
@@ -122,6 +125,7 @@ class MainActivity : Activity(), ServiceStateListener {
             text = "Fuck Market Ads"
             textSize = 22f
             setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFF6B35.toInt())
             setPadding(0, 0, 0, dp(4))
         })
         statusView = TextView(this).apply {
@@ -170,26 +174,40 @@ class MainActivity : Activity(), ServiceStateListener {
         }
     }
 
-    /** 在筛选开关下方构建“保留哪些标签”的多选列表 */
+    /** 在筛选开关下方构建“保留哪些标签”的多选列表（整体包进一张卡片） */
     private fun buildTabSelectSection() {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        val cardLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        cardLp.bottomMargin = dp(10)
+        card.layoutParams = cardLp
+
         val hint = TextView(this).apply {
             text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
             textSize = 12f
-            setPadding(dp(8), dp(8), 0, dp(4))
+            setTextColor(0xFF8E8E93.toInt())
+            setPadding(0, 0, 0, dp(8))
         }
-        container.addView(hint)
+        card.addView(hint)
 
         TAB_ITEMS.forEach { (tag, label) ->
             val cb = CheckBox(this).apply {
                 text = label
                 this.tag = tag
                 isChecked = readLocalTabs().contains(tag)
-                setPadding(dp(28), dp(2), 0, dp(2))
+                setPadding(dp(8), dp(4), 0, dp(4))
                 setOnCheckedChangeListener { _, _ -> writeTabSelection() }
             }
             tabChecks.add(cb)
-            container.addView(cb)
+            card.addView(cb)
         }
+        container.addView(card)
     }
 
     /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
