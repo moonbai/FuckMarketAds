@@ -2,9 +2,9 @@ package com.owo233.fuckmarketads.init
 
 import com.owo233.fuckmarketads.HookEnv
 import com.owo233.fuckmarketads.Settings
-import de.robv.android.xposed.XC_MethodHook
+import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface
-import java.lang.reflect.Member
+import java.lang.reflect.Executable
 
 abstract class BaseHook {
 
@@ -59,9 +59,9 @@ abstract class BaseHook {
      *
      * 每次被调用时先检查 [enabled]：
      *  - 开关开启 → 执行 [block]；
-     *  - 开关关闭 → 原样放行（[XC_MethodHook.MethodHookParam.proceed]）。
+     *  - 开关关闭 → 原样放行（[XposedInterface.Chain.proceed]）。
      */
-    protected fun Member.hooked(block: XC_MethodHook.MethodHookParam.() -> Any?) {
+    protected fun Executable.hooked(block: XposedInterface.Chain.() -> Any?) {
         HookEnv.base.hook(this).intercept { param ->
             if (!enabled()) return@intercept param.proceed()
             param.block()
