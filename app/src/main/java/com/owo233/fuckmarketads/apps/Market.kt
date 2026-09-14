@@ -1,6 +1,9 @@
 package com.owo233.fuckmarketads.apps
 
+import com.owo233.fuckmarketads.hooks.market.AntiSelfDestruct
+import com.owo233.fuckmarketads.hooks.market.ConfigBackupRestore
 import com.owo233.fuckmarketads.hooks.market.DetailAds
+import com.owo233.fuckmarketads.hooks.market.EnableSuperIsland
 import com.owo233.fuckmarketads.hooks.market.HideSecurityView
 import com.owo233.fuckmarketads.hooks.market.HideFruitEntry
 import com.owo233.fuckmarketads.hooks.market.HomeFeed
@@ -33,7 +36,12 @@ object Market : AppRegister() {
             HideFruitEntry,
             TabFilter,
             RankAds,
-            MiscApply
+            EnableSuperIsland,
+            MiscApply,
+            // 以下为稳定性增强（参考 lisrain/NewFuckMarketAds_Fork）：
+            // 纯保护性安全网，不受单个功能开关控制，由总开关统一门控。
+            AntiSelfDestruct,
+            ConfigBackupRestore
         )
     }
 }

@@ -82,6 +82,9 @@ object Settings {
     /** 移除「榜单」界面广告 / 推广卡片 */
     const val KEY_RANK = "rank_ads"
 
+    /** 强制启用下载进度小米超级岛（无视服务端灰度） */
+    const val KEY_ISLAND = "super_island"
+
     /**
      * 每次读取都重新获取远程偏好对象，避免持有进程内快照导致“开关改了不生效”。
      * libxposed 的远程偏好本身支持跨进程实时更新，但不同版本行为不一，
