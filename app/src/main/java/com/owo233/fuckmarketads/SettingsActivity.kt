@@ -51,7 +51,6 @@ class SettingsActivity : Activity() {
         content.addView(info)
         content.addView(spacer())
 
-        // 基础功能
         sectionTitle(content, "基础功能")
         content.addView(switchRow("隐藏应用安全检查", "隐藏应用安装时的安全检查弹窗", HookSettings.KEY_HIDE_SECURITY))
         content.addView(divider())
@@ -62,7 +61,6 @@ class SettingsActivity : Activity() {
         content.addView(switchRow("禁用OTA验证", "禁用系统更新验证", HookSettings.KEY_BYPASS_OTA))
         content.addView(spacer())
 
-        // 广告拦截
         sectionTitle(content, "广告拦截（逐项控制）")
         content.addView(switchRow("开屏广告", "拦截应用商店开屏广告", HookSettings.KEY_ADS_SPLASH))
         content.addView(divider())
@@ -115,8 +113,8 @@ class SettingsActivity : Activity() {
         textCol.addView(d)
         row.addView(textCol)
         val sw = Switch(this)
-        sw.isChecked = HookSettings.isEnabled(this, key)
-        sw.setOnCheckedChangeListener { _, isChecked -> HookSettings.setEnabled(this, key, isChecked) }
+        sw.isChecked = HookSettings.isEnabled(key)
+        sw.setOnCheckedChangeListener { _, isChecked -> HookSettings.setEnabled(key, isChecked) }
         row.addView(sw)
         return row
     }
