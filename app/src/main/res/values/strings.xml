@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Fuck Market Ads</string>
-    <string name="xposed_desc">去他妈的小米应用商店广告</string>
+    <string name="app_name">Mi Market Purify</string>
+    <string name="xposed_desc">小米应用商店净化与增强</string>
 </resources>
