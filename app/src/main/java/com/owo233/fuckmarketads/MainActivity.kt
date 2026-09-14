@@ -3,6 +3,7 @@ package com.owo233.fuckmarketads
 import android.app.Activity
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -10,6 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.owo233.fuckmarketads.App.ServiceStateListener
 import com.owo233.fuckmarketads.Settings.PREFS_GROUP
+import com.owo233.fuckmarketads.Settings.TAB_ITEMS
 import io.github.libxposed.service.XposedService
 
 /**
@@ -24,6 +26,12 @@ class MainActivity : Activity(), ServiceStateListener {
     private lateinit var container: LinearLayout
     private lateinit var statusView: TextView
 
+    /** 总开关与“筛选底部标签栏”开关的引用，用于级联控制勾选框可用状态 */
+    private var masterSwitch: android.widget.Switch? = null
+    private var tabFilterSwitch: android.widget.Switch? = null
+    /** “保留哪些标签”的勾选框列表 */
+    private val tabChecks = mutableListOf<CheckBox>()
+
     /** 每一个开关：key、标题、说明、默认值 */
     private val features = listOf(
         Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
@@ -33,7 +41,7 @@ class MainActivity : Activity(), ServiceStateListener {
         Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
         Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
         Feature(Settings.KEY_SECURITY, "隐藏应用安全检测", "隐藏“我的”页中的应用安全检测视图", true),
-        Feature(Settings.KEY_TAB_FILTER, "精简底部标签栏", "仅保留 首页 / 我的 两个标签", true),
+        Feature(Settings.KEY_TAB_FILTER, "筛选底部标签栏", "勾选要保留的标签，其余隐藏", true),
         Feature(Settings.KEY_MISC, "细节修正", "显示非正版/被隐藏更新等细节处理", true),
         Feature(Settings.KEY_OTA, "禁用 OTA 验证", "系统更新中禁用 OTA 校验（Updater）", true),
     )
@@ -98,6 +106,14 @@ class MainActivity : Activity(), ServiceStateListener {
             }
             (container.findViewWithTag<CompoundButton>(Settings.KEY_MASTER))?.isChecked =
                 readLocal(Settings.KEY_MASTER, true)
+
+            // 刷新底部标签勾选状态
+            val kept = readLocalTabs()
+            tabChecks.forEach { cb ->
+                val t = cb.tag
+                cb.isChecked = t is String && kept.contains(t)
+            }
+            updateTabChecksEnabled()
         }
     }
 
@@ -126,7 +142,9 @@ class MainActivity : Activity(), ServiceStateListener {
         sw.isChecked = readLocal(Settings.KEY_MASTER, true)
         sw.setOnCheckedChangeListener { _, isChecked ->
             writeRemote(Settings.KEY_MASTER, isChecked)
+            updateTabChecksEnabled()
         }
+        masterSwitch = sw
         container.addView(row)
     }
 
@@ -140,8 +158,51 @@ class MainActivity : Activity(), ServiceStateListener {
         sw.isChecked = readLocal(f.key, f.default)
         sw.setOnCheckedChangeListener { _, isChecked ->
             writeRemote(f.key, isChecked)
+            // 总开关或筛选开关变动时，需要重新评估勾选框是否可用
+            if (f.key == Settings.KEY_TAB_FILTER) updateTabChecksEnabled()
         }
         container.addView(row)
+
+        // 在“筛选底部标签栏”这一行下面，追加“保留哪些标签”的勾选列表
+        if (f.key == Settings.KEY_TAB_FILTER) {
+            tabFilterSwitch = sw
+            buildTabSelectSection()
+        }
+    }
+
+    /** 在筛选开关下方构建“保留哪些标签”的多选列表 */
+    private fun buildTabSelectSection() {
+        val hint = TextView(this).apply {
+            text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
+            textSize = 12f
+            setPadding(dp(8), dp(8), 0, dp(4))
+        }
+        container.addView(hint)
+
+        TAB_ITEMS.forEach { (tag, label) ->
+            val cb = CheckBox(this).apply {
+                text = label
+                this.tag = tag
+                isChecked = readLocalTabs().contains(tag)
+                setPadding(dp(28), dp(2), 0, dp(2))
+                setOnCheckedChangeListener { _, _ -> writeTabSelection() }
+            }
+            tabChecks.add(cb)
+            container.addView(cb)
+        }
+    }
+
+    /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
+    private fun writeTabSelection() {
+        val kept = tabChecks.filter { it.isChecked }.map { it.tag as String }.toSet()
+        writeRemoteString(Settings.KEY_TAB_KEEP, kept.joinToString(","))
+    }
+
+    /** 根据总开关与“筛选底部标签栏”开关，级联控制勾选框是否可操作 */
+    private fun updateTabChecksEnabled() {
+        val enabled =
+            readLocal(Settings.KEY_MASTER, true) && readLocal(Settings.KEY_TAB_FILTER, true)
+        tabChecks.forEach { it.isEnabled = enabled }
     }
 
     /** 读远程偏好；服务未连接时回落到默认值 */
@@ -158,6 +219,28 @@ class MainActivity : Activity(), ServiceStateListener {
         }
         runCatching {
             prefs.edit()?.putBoolean(key, value)?.apply()
+        }.onFailure {
+            Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 读取“保留哪些标签”的集合（逗号分隔字符串解析为 tag 集合） */
+    private fun readLocalTabs(): Set<String> {
+        val raw = service?.getRemotePreferences(PREFS_GROUP)
+            ?.getString(Settings.KEY_TAB_KEEP, Settings.DEFAULT_TAB_KEEP)
+            ?: Settings.DEFAULT_TAB_KEEP
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    /** 写字符串类型远程偏好（用于保存逗号分隔的标签集合） */
+    private fun writeRemoteString(key: String, value: String) {
+        val prefs = service?.getRemotePreferences(PREFS_GROUP)
+        if (prefs == null) {
+            Toast.makeText(this, "模块未激活，无法保存", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            prefs.edit()?.putString(key, value)?.apply()
         }.onFailure {
             Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
         }

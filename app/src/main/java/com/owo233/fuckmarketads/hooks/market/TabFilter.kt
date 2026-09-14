@@ -11,21 +11,8 @@ object TabFilter : BaseHook() {
 
     override val prefKey: String = Settings.KEY_TAB_FILTER
 
-    private val keepPrefixes by lazy {
-        /**
-         * native_market_mine // 我的
-         * native_market_home // 主页
-         * native_market_video // 视频号，在4.99.0或之前的某个版本开始没了
-         * native_market_agent // shit 智能体
-         * native_app_assemble // shit 应用号
-         * native_market_game // 游戏
-         * native_market_rank // 榜单
-         */
-        setOf("native_market_home", "native_market_mine")
-    }
-
     override val name: String
-        get() = "过滤底部TAB标签"
+        get() = "筛选底部TAB标签"
 
     override fun init() {
         ClassUtil.loadClass("com.xiaomi.market.model.TabInfo").also {
@@ -39,11 +26,16 @@ object TabFilter : BaseHook() {
                 .filterByParamCount(1)
                 .first()
                 .hooked {
+                    // 用户勾选要保留的标签集合（按 tag 精确匹配），空集合 = 保留全部
+                    val kept = Settings.getKeptTabs()
+                    if (kept.isEmpty()) return@hooked proceed()
+
                     val result = proceed()
                     val list = (result as List<*>).toMutableList()
                     list.removeAll { item ->
-                        val tag = tabField.get(item) as String
-                        keepPrefixes.none { prefix -> tag.startsWith(prefix) }
+                        val tag = runCatching { tabField.get(item) as? String }.getOrNull()
+                        // 取不到 tag 的项一律移除，避免残留无法识别的标签
+                        tag == null || tag !in kept
                     }
                     return@hooked list
                 }

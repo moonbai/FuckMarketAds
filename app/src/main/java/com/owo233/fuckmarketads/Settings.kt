@@ -46,8 +46,32 @@ object Settings {
     /** 隐藏应用安全检测视图 */
     const val KEY_SECURITY = "hide_security"
 
-    /** 精简底部标签栏 */
+    /** 精简底部标签栏（总开关：是否启用标签筛选） */
     const val KEY_TAB_FILTER = "tab_filter"
+
+    /**
+     * 底部标签栏“保留哪些标签”的选择集合（逗号分隔存储）。
+     * 由用户在主页勾选后写入；hook 侧读取并据此动态保留。
+     * 空字符串 / 空集合视为“保留全部”，避免误清空底栏。
+     */
+    const val KEY_TAB_KEEP = "tab_keep"
+
+    /** [KEY_TAB_KEEP] 的默认值：仅保留「首页 / 我的」，与改造前行为一致 */
+    const val DEFAULT_TAB_KEEP = "native_market_home,native_market_mine"
+
+    /**
+     * 已知底部标签（tag -> 显示名）。用于主页多选 UI。
+     * 不同版本可能增删标签，这里列出较全的常见项；运行时不存在的标签不影响过滤。
+     */
+    val TAB_ITEMS: LinkedHashMap<String, String> = linkedMapOf(
+        "native_market_home" to "首页",
+        "native_market_mine" to "我的",
+        "native_market_video" to "视频号",
+        "native_market_agent" to "智能体",
+        "native_app_assemble" to "应用号",
+        "native_market_game" to "游戏",
+        "native_market_rank" to "榜单",
+    )
 
     /** 细节修正（非正版 / 隐藏更新等） */
     const val KEY_MISC = "misc_apply"
@@ -74,5 +98,18 @@ object Settings {
     /** 指定开关是否开启；默认值由 [def] 决定（绝大多数功能默认开启） */
     fun isEnabled(key: String, def: Boolean = true): Boolean {
         return getPrefs()?.getBoolean(key, def) ?: def
+    }
+
+    /**
+     * 读取“保留哪些底部标签”的集合（按 tag）。
+     * 存储为逗号分隔字符串，避免依赖远程偏好对 [Set] 的支持差异。
+     * 空集合（用户未勾选任何项 / 未写入）视为保留全部，hook 侧据此不裁剪底栏。
+     */
+    fun getKeptTabs(): Set<String> {
+        val raw = getPrefs()?.getString(KEY_TAB_KEEP, DEFAULT_TAB_KEEP) ?: DEFAULT_TAB_KEEP
+        return raw.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
     }
 }
