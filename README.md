@@ -1,6 +1,6 @@
 # Fuck Market Ads（应用商店去广告）
 
-> 基于原仓库 `moonbai/FuckMarketAds` 进行重构与功能扩展，整体由 **AI 辅助构建 / 优化**：
+> 基于原仓库 `callng/NewFuckMarketAds` 进行功能扩展，整体由 **AI 辅助构建 / 优化**：
 > 在保留原有“挂钩应用商店核心逻辑去广告”思路的基础上，补齐了**程序主页与各功能开关**、**榜单广告移除**、**领水果入口屏蔽**、**桌面图标隐藏**等能力，并对原有“部分开关不生效”的问题做了运行时实时受控的修复。
 
 ## 功能 / Features
@@ -54,8 +54,7 @@
 
 ## 致谢 / Thanks
 
-- [ezXHelper](https://github.com/KyuubiRan/EzXHelper)
-- 原仓库 `moonbai/FuckMarketAds` 的去广告思路
+- [ezXHelper](https://github.com/KyuubiRan/EzXHelper) [NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds)
 
 ## 免责声明 / Disclaimer
 
