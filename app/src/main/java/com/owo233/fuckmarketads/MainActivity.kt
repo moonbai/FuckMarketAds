@@ -1,66 +1,133 @@
 package com.owo233.fuckmarketads
 
+import android.app.Activity
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.widget.CheckBox
+import android.widget.CompoundButton
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.owo233.fuckmarketads.App.ServiceStateListener
-import com.owo233.fuckmarketads.Settings.DEFAULT_TAB_KEEP
-import com.owo233.fuckmarketads.Settings.KEY_TAB_KEEP
 import com.owo233.fuckmarketads.Settings.PREFS_GROUP
 import com.owo233.fuckmarketads.Settings.TAB_ITEMS
-import com.owo233.fuckmarketads.ui.ALL_FEATURES
-import com.owo233.fuckmarketads.ui.SettingsRoot
 import io.github.libxposed.service.XposedService
 
 /**
- * 程序主页：以 Jetpack Compose + MiuiX 呈现模块状态与功能开关。
+ * 程序主页：展示模块状态，并提供分类整理后的各功能开关。
  *
- * 职责划分：
- *  - 本类只负责「数据」：绑定框架服务、读写远程偏好、操作桌面入口 alias；
- *  - UI 渲染全部在 ui/SettingsScreen.kt（[SettingsRoot]）里，通过观察这里的 Compose state 重组。
+ * 布局要点：
+ *  - 采用edge-to-edge + [WindowInsetsCompat] 手动处理系统栏内边距，
+ *    避免在 targetSdk 36 下内容（总开关行）被状态栏/标题区域遮挡；
+ *  - 不使用系统 ActionBar，标题由本界面自行绘制（见 styles.xml AppTheme）。
  *
  * 「隐藏桌面图标」不再禁用本 Activity，而是禁用桌面入口 alias，
  * 保证 LSPosed 等框架始终可以打开主页（详见 manifest 注释）。
  */
-class MainActivity : ComponentActivity(), ServiceStateListener {
+class MainActivity : Activity(), ServiceStateListener {
+
+    private var service: XposedService? = null
+    private lateinit var container: LinearLayout
+    private lateinit var statusView: TextView
 
     /** 桌面入口 alias 的组件名：隐藏图标时只禁用它 */
     private val launcherAlias: ComponentName by lazy {
         ComponentName(this, "$packageName.LauncherAlias")
     }
 
-    /** 框架服务实例；本身作为 Compose state，服务变化时主页自动重组 */
-    internal val serviceState = mutableStateOf<XposedService?>(null)
+    /** 总开关与“筛选底部标签栏”开关的引用，用于级联控制勾选框可用状态 */
+    private var masterSwitch: CompoundButton? = null
+    private var tabFilterSwitch: CompoundButton? = null
+    /** “隐藏桌面图标”开关（独立于远程偏好，直接操作系统组件启用状态） */
+    private var hideIconSwitch: CompoundButton? = null
+    /** “保留哪些标签”的勾选框列表 */
+    private val tabChecks = mutableListOf<CheckBox>()
 
-    /** 各功能开关的 UI 状态（key -> 是否开启） */
-    internal val switches = mutableStateMapOf<String, Boolean>()
+    /** 按使用场景划分的功能分组 */
+    private val categories = listOf(
+        Category(
+            "广告移除", "拦截商店各处的广告与软件推荐", listOf(
+                Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
+                Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗", true),
+                Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告低栏", "隐藏主页底部视频/应用推荐与热词栏", true),
+                Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果中的软件推荐", true),
+                Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
+                Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
+                Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片", true),
+            )
+        ),
+        Category(
+            "界面净化", "清理页面中不需要显示的元素", listOf(
+                Feature(Settings.KEY_SECURITY, "隐藏应用安全检测", "隐藏“我的”页中的应用安全检测视图", true),
+                Feature(Settings.KEY_FRUIT, "屏蔽领水果入口", "隐藏福利活动 gif 动图入口（entrance_gif）", true),
+                Feature(
+                    Settings.KEY_TAB_FILTER, "筛选底部标签栏 / 推广位",
+                    "勾选要保留的标签；同时清理首页顶栏云控推广位", true
+                ),
+            )
+        ),
+        Category(
+            "功能增强", "还原被服务端灰度限制的能力", listOf(
+                Feature(Settings.KEY_ISLAND, "启用下载超级岛", "强制让下载进度进入小米超级岛（无视灰度）", true),
+            )
+        ),
+        Category(
+            "细节修正", "清理之外的体验微调", listOf(
+                Feature(Settings.KEY_MISC, "细节修正", "显示非正版 APP、被隐藏更新等细节处理", true),
+            )
+        ),
+    )
 
-    /** 「保留哪些底部标签」的 UI 状态（tag -> 是否保留） */
-    internal val tabKeep = mutableStateMapOf<String, Boolean>()
-
-    /** 「隐藏桌面图标」的 UI 状态（不经过远程偏好） */
-    internal var hideIcon by mutableStateOf(false)
-        private set
-
-    private val service: XposedService? get() = serviceState.value
+    private val allFeatures: List<Feature> = categories.flatMap { it.features }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // 入口自愈：曾被旧版本锁出的设备，覆盖安装后自动恢复
         EntryGuardReceiver.ensureEntryEnabled(this)
-        enableEdgeToEdge()
 
-        reloadAll()
-        setContent { SettingsRoot(this) }
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(0xFFF2F2F7.toInt())
+            // 让内容可以延伸到系统栏下方，由容器自身的内边距控制视觉留白
+            clipToPadding = false
+        }
+        container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+        scroll.addView(container)
+        setContentView(scroll)
+        applySystemBarInsets(scroll)
+
+        buildHeader()
+        buildMasterSwitch()
+        buildCategories()
+        buildModuleSection()
+    }
+
+    /**
+     * 处理 edge-to-edge：把系统栏 / 刘海的高度加到滚动容器上，
+     * 修复 targetSdk 36 下顶部内容被状态栏遮挡的问题。
+     */
+    private fun applySystemBarInsets(scroll: ScrollView) {
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            v.setPadding(0, bars.top, 0, bars.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(scroll)
     }
 
     override fun onStart() {
@@ -74,101 +141,245 @@ class MainActivity : ComponentActivity(), ServiceStateListener {
     }
 
     override fun onServiceStateChanged(service: XposedService?) {
-        // 回调不保证在主线程，Compose state 必须在主线程更新
+        this.service = service
         runOnUiThread {
-            serviceState.value = service
-            reloadAll()
-        }
-    }
-
-    // ===== UI 交互入口（由 Compose 调用）=====
-
-    /**
-     * 修改一个布尔开关：乐观更新 UI，写入失败则回滚并提示。
-     */
-    internal fun setSwitch(key: String, value: Boolean) {
-        val previous = switches[key] ?: true
-        switches[key] = value
-        if (!writeRemote(key, value)) {
-            switches[key] = previous
-            toast("模块未激活，无法保存")
-        }
-    }
-
-    /**
-     * 修改「保留的底部标签」集合（逗号分隔写入远程偏好）。
-     */
-    internal fun setTab(tag: String, checked: Boolean) {
-        tabKeep[tag] = checked
-        val kept = tabKeep.filterValues { it }.keys.toMutableSet()
-        if (checked) kept += tag else kept -= tag
-        if (!writeRemoteString(KEY_TAB_KEEP, kept.joinToString(","))) {
-            tabKeep[tag] = !checked
-            toast("模块未激活，无法保存")
-        }
-    }
-
-    /**
-     * 隐藏 / 恢复桌面图标：只切换 alias 组件，MainActivity 始终保持启用。
-     */
-    internal fun setHideIcon(hide: Boolean) {
-        val previous = hideIcon
-        hideIcon = hide
-        runCatching {
-            EntryGuardReceiver.ensureEntryEnabled(this)
-            val state = if (hide) {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            if (service == null) {
+                statusView.text = "模块未激活：请在 LSPosed / 框架中启用本模块并勾选作用域"
             } else {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                val caps = mutableListOf<String>()
+                val props = service.frameworkProperties
+                if (props and XposedService.PROP_CAP_REMOTE != 0L) caps += "远程偏好"
+                if (props and XposedService.PROP_CAP_SYSTEM != 0L) caps += "系统域"
+                statusView.text = buildString {
+                    append("已激活 · ${service.frameworkName} ${service.frameworkVersion}")
+                    if (caps.isNotEmpty()) append("\n支持：${caps.joinToString("、")}")
+                    else append("\n注意：当前框架不支持远程偏好，开关可能不生效")
+                }
             }
-            packageManager.setComponentEnabledSetting(
-                launcherAlias, state, PackageManager.DONT_KILL_APP
-            )
-            toast(if (hide) "已隐藏桌面图标，可在 LSPosed 模块列表中进入主页" else "已恢复桌面图标")
-        }.onFailure {
-            hideIcon = previous
-            toast("操作失败：${it.message}")
+            refreshAll()
         }
     }
 
-    // ===== 远程偏好读写 =====
+    /** 刷新所有开关的显示状态（框架连接后调用） */
+    private fun refreshAll() {
+        allFeatures.forEach { f ->
+            (container.findViewWithTag<CompoundButton>(f.key))?.isChecked =
+                readLocal(f.key, f.default)
+        }
+        (container.findViewWithTag<CompoundButton>(Settings.KEY_MASTER))?.isChecked =
+            readLocal(Settings.KEY_MASTER, true)
 
-    /** 从远程偏好重新拉取全部 UI 状态 */
-    internal fun reloadAll() {
-        switches[Settings.KEY_MASTER] = readBool(Settings.KEY_MASTER, true)
-        ALL_FEATURES.forEach { switches[it.key] = readBool(it.key, it.default) }
-        val kept = readTabs()
-        TAB_ITEMS.forEach { (tag, _) -> tabKeep[tag] = kept.contains(tag) }
-        hideIcon = isLauncherIconHidden()
+        val kept = readLocalTabs()
+        tabChecks.forEach { cb ->
+            val t = cb.tag
+            cb.isChecked = t is String && kept.contains(t)
+        }
+        updateTabChecksEnabled()
+        hideIconSwitch?.isChecked = isLauncherIconHidden()
+    }
+
+    private fun buildHeader() {
+        container.addView(TextView(this).apply {
+            text = "Fuck Market Ads"
+            textSize = 24f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(0xFFFF6B35.toInt())
+            setPadding(0, 0, 0, dp(2))
+        })
+        container.addView(TextView(this).apply {
+            text = "小米应用商店去广告"
+            textSize = 13f
+            setTextColor(0xFF8E8E93.toInt())
+            setPadding(0, 0, 0, dp(8))
+        })
+        statusView = TextView(this).apply {
+            text = "正在连接框架…"
+            textSize = 12f
+            setTextColor(0xFF8E8E93.toInt())
+            setPadding(0, 0, 0, dp(14))
+            setLineSpacing(0f, 1.3f)
+        }
+        container.addView(statusView)
+    }
+
+    private fun buildMasterSwitch() {
+        val row = LayoutInflater.from(this)
+            .inflate(R.layout.item_switch, container, false)
+        row.findViewById<TextView>(R.id.title).text = "总开关"
+        row.findViewById<TextView>(R.id.summary).text = "关闭后所有功能均不生效"
+        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
+        sw.tag = Settings.KEY_MASTER
+        sw.isChecked = readLocal(Settings.KEY_MASTER, true)
+        sw.setOnCheckedChangeListener { _, isChecked ->
+            writeRemote(Settings.KEY_MASTER, isChecked)
+            updateTabChecksEnabled()
+        }
+        masterSwitch = sw
+        container.addView(row)
+    }
+
+    private fun buildCategories() {
+        categories.forEach { category ->
+            addSectionHeader(category.title, category.subtitle)
+            category.features.forEach { f ->
+                buildFeatureRow(f)
+                if (f.key == Settings.KEY_TAB_FILTER) buildTabSelectSection()
+            }
+        }
+    }
+
+    /** 模块自身相关的设置（不参与远程偏好） */
+    private fun buildModuleSection() {
+        addSectionHeader("模块自身", "仅影响本模块的显示方式")
+        buildHideIconRow()
+    }
+
+    private fun addSectionHeader(title: String, subtitle: String) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { lp ->
+                lp.topMargin = dp(14)
+                lp.bottomMargin = dp(6)
+                lp.marginStart = dp(4)
+            }
+        }
+        box.addView(TextView(this).apply {
+            text = title
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(0xFF48484A.toInt())
+        })
+        box.addView(TextView(this).apply {
+            text = subtitle
+            textSize = 11f
+            setTextColor(0xFFA0A0A5.toInt())
+        })
+        container.addView(box)
+    }
+
+    private fun buildFeatureRow(f: Feature) {
+        val row = LayoutInflater.from(this)
+            .inflate(R.layout.item_switch, container, false)
+        row.findViewById<TextView>(R.id.title).text = f.title
+        row.findViewById<TextView>(R.id.summary).text = f.summary
+        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
+        sw.tag = f.key
+        sw.isChecked = readLocal(f.key, f.default)
+        sw.setOnCheckedChangeListener { _, isChecked ->
+            writeRemote(f.key, isChecked)
+            if (f.key == Settings.KEY_TAB_FILTER) updateTabChecksEnabled()
+        }
+        if (f.key == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
+        container.addView(row)
+    }
+
+    /** 在筛选开关下方构建“保留哪些标签”的多选列表（整体包进一张卡片） */
+    private fun buildTabSelectSection() {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        val cardLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        cardLp.bottomMargin = dp(10)
+        card.layoutParams = cardLp
+
+        val hint = TextView(this).apply {
+            text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
+            textSize = 12f
+            setTextColor(0xFF8E8E93.toInt())
+            setPadding(0, 0, 0, dp(6))
+        }
+        card.addView(hint)
+
+        TAB_ITEMS.forEach { (tag, label) ->
+            val cb = CheckBox(this).apply {
+                text = label
+                this.tag = tag
+                isChecked = readLocalTabs().contains(tag)
+                setPadding(dp(8), dp(4), 0, dp(4))
+                setOnCheckedChangeListener { _, _ -> writeTabSelection() }
+            }
+            tabChecks.add(cb)
+            card.addView(cb)
+        }
+        container.addView(card)
+    }
+
+    /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
+    private fun writeTabSelection() {
+        val kept = tabChecks.filter { it.isChecked }.map { it.tag as String }.toSet()
+        writeRemoteString(Settings.KEY_TAB_KEEP, kept.joinToString(","))
+    }
+
+    /** 根据总开关与“筛选底部标签栏”开关，级联控制勾选框是否可操作 */
+    private fun updateTabChecksEnabled() {
+        val enabled =
+            readLocal(Settings.KEY_MASTER, true) && readLocal(Settings.KEY_TAB_FILTER, true)
+        tabChecks.forEach { it.isEnabled = enabled }
     }
 
     /** 读远程偏好；服务未连接时回落到默认值 */
-    private fun readBool(key: String, def: Boolean): Boolean {
+    private fun readLocal(key: String, def: Boolean): Boolean {
         return service?.getRemotePreferences(PREFS_GROUP)?.getBoolean(key, def) ?: def
     }
 
-    /** 写布尔值；返回是否写入成功 */
-    private fun writeRemote(key: String, value: Boolean): Boolean {
-        return runCatching {
-            service?.getRemotePreferences(PREFS_GROUP)?.edit()?.putBoolean(key, value)?.apply()
-            service != null
-        }.getOrDefault(false)
+    /** 写远程偏好；返回是否写入成功 */
+    private fun writeRemote(key: String, value: Boolean) {
+        val prefs = service?.getRemotePreferences(PREFS_GROUP)
+        if (prefs == null) {
+            Toast.makeText(this, "模块未激活，无法保存", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            prefs.edit()?.putBoolean(key, value)?.apply()
+        }.onFailure {
+            Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    /** 写字符串；返回是否写入成功 */
-    private fun writeRemoteString(key: String, value: String): Boolean {
-        return runCatching {
-            service?.getRemotePreferences(PREFS_GROUP)?.edit()?.putString(key, value)?.apply()
-            service != null
-        }.getOrDefault(false)
-    }
-
-    /** 读取「保留哪些标签」的集合（逗号分隔字符串解析为 tag 集合） */
-    private fun readTabs(): Set<String> {
+    /** 读取“保留哪些标签”的集合（逗号分隔字符串解析为 tag 集合） */
+    private fun readLocalTabs(): Set<String> {
         val raw = service?.getRemotePreferences(PREFS_GROUP)
-            ?.getString(KEY_TAB_KEEP, DEFAULT_TAB_KEEP)
-            ?: DEFAULT_TAB_KEEP
+            ?.getString(Settings.KEY_TAB_KEEP, Settings.DEFAULT_TAB_KEEP)
+            ?: Settings.DEFAULT_TAB_KEEP
         return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    /** 写字符串类型远程偏好（用于保存逗号分隔的标签集合） */
+    private fun writeRemoteString(key: String, value: String) {
+        val prefs = service?.getRemotePreferences(PREFS_GROUP)
+        if (prefs == null) {
+            Toast.makeText(this, "模块未激活，无法保存", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            prefs.edit()?.putString(key, value)?.apply()
+        }.onFailure {
+            Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 构建“隐藏桌面图标”独立开关（不经过远程偏好，直接操作系统 alias 组件状态） */
+    private fun buildHideIconRow() {
+        val row = LayoutInflater.from(this)
+            .inflate(R.layout.item_switch, container, false)
+        row.findViewById<TextView>(R.id.title).text = "隐藏桌面图标"
+        row.findViewById<TextView>(R.id.summary).text =
+            "仅移除桌面抽屉中的图标，仍可从 LSPosed 模块列表进入主页"
+        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
+        sw.isChecked = isLauncherIconHidden()
+        sw.setOnCheckedChangeListener { _, isChecked ->
+            applyHideIcon(isChecked)
+        }
+        hideIconSwitch = sw
+        container.addView(row)
     }
 
     /** 当前桌面图标是否已被隐藏（即桌面入口 alias 被禁用） */
@@ -179,7 +390,41 @@ class MainActivity : ComponentActivity(), ServiceStateListener {
         }.getOrDefault(false)
     }
 
-    private fun toast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    /** 隐藏 / 恢复桌面图标：只切换 alias 组件，MainActivity 始终保持启用 */
+    private fun applyHideIcon(hide: Boolean) {
+        runCatching {
+            EntryGuardReceiver.ensureEntryEnabled(this)
+            val state = if (hide) {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            }
+            packageManager.setComponentEnabledSetting(
+                launcherAlias, state, PackageManager.DONT_KILL_APP
+            )
+            Toast.makeText(
+                this,
+                if (hide) "已隐藏桌面图标，可在 LSPosed 模块列表中进入主页"
+                else "已恢复桌面图标",
+                Toast.LENGTH_LONG
+            ).show()
+        }.onFailure {
+            Toast.makeText(this, "操作失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
     }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    private data class Feature(
+        val key: String,
+        val title: String,
+        val summary: String,
+        val default: Boolean
+    )
+
+    private data class Category(
+        val title: String,
+        val subtitle: String,
+        val features: List<Feature>
+    )
 }

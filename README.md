@@ -1,8 +1,8 @@
-# MiMarketPurify
-> 小米应用商店净化与增强 LSPosed 模块，基于 `callng/FuckMarketAds` 进行重构与功能扩展，整体由 AI 辅助构建 / 优化。
+# Fuck Market Ads
+> 应用商店去广告 LSPosed 模块，基于 `moonbai/FuckMarketAds` 进行重构与功能扩展，整体由 AI 辅助构建 / 优化。
 
 ## 项目介绍
-本项目是对原版应用商店去广告模块的深度增强重构版本，在保留 Hook 应用商店渲染逻辑实现净化的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期存在的开关需要重启、子开关不生效的缺陷。
+本项目是对原版应用商店去广告模块的深度增强重构版本，在保留 Hook 应用商店渲染逻辑实现去广告的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期存在的开关需要重启、子开关不生效的缺陷。
 
 模块无联网、无后台上报，仅在目标应用商店进程内生效，旨在打造干净、无广告、无营销活动、可高度自定义的纯净应用商店体验。
 
@@ -10,7 +10,7 @@
 ### 全场景广告屏蔽
 - 移除开屏广告
 - 禁止切换前台展示广告 / 推荐
-- 隐藏信息流广告（视频 / 应用推荐、热词）
+- 隐藏信息流广告低栏（视频 / 应用推荐、热词）
 - 移除搜索建议 / 搜索页 / 搜索结果的软件推荐
 - 移除应用升级页与下载页的软件推荐
 - 移除应用详情页的广告、评论与推荐
@@ -46,15 +46,15 @@
 
 | 分组 | 包含开关 |
 | --- | --- |
-| 广告移除 | 开屏广告、前台广告/推荐、主页信息流广告、搜索推荐、升级/下载推荐、详情页广告、榜单广告 |
+| 广告移除 | 开屏广告、前台广告/推荐、信息流广告低栏、搜索推荐、升级/下载推荐、详情页广告、榜单广告 |
 | 界面净化 | 应用安全检测、领水果入口、底部标签栏筛选、云控推广位清理 |
 | 功能增强 | 下载超级岛 |
 | 细节修正 | 非正版 APP / 被隐藏更新等细节处理 |
 | 模块自身 | 隐藏桌面图标 |
 
 - 「筛选底部标签栏」下方提供**多选列表**：勾选要保留的标签，未勾选的会被隐藏；
-- 界面适配 **edge‑to‑edge**：由 Miuix 的 `Scaffold` 统一消费系统栏 / 刘海 insets 并下发给内容区 `PaddingValues`，避免顶部内容被状态栏遮挡；
-- 主页整体采用 **Jetpack Compose + MiuiX**（`Scaffold` / `TopAppBar` / `Card` / `SmallTitle` / `SwitchPreference` / `CheckboxPreference`），跟随系统深浅色自动切换日间 / 夜间配色。
+- 界面适配 **edge‑to‑edge**：通过 `WindowInsetsCompat` 消费系统栏 / 刘海 insets 并回填到滚动容器，避免顶部内容被状态栏遮挡；
+- 主页为**纯原生 View 实现**（`ScrollView` / `LinearLayout` / `Switch` / `CheckBox`），不引入 Compose 运行时，安装包体积保持在极小水平。
 
 ## 开关何时生效（重要）
 每个功能开关都在对应 hook 的**每次调用时实时读取**远程偏好，因此：
@@ -83,7 +83,8 @@
 
 ## 技术说明
 - Hook 框架：libxposed 101.0.0 + ezXHelper
-- 主页 UI：Jetpack Compose（Kotlin Compose Compiler 2.4.20）+ MiuiX（`miuix-ui` / `miuix-preference`），无 Material3 / 无 AppCompat 依赖
+- 主页 UI：原生 View 手写布局，零 UI 框架依赖（不依赖 Compose / AppCompat / Material）
+- 分支说明：本仓库的 [`miuix` 分支](https://github.com/moonbai/FuckMarketAds/tree/miuix) 曾用 Jetpack Compose + MiuiX（HyperOS 风格组件库）重写主页；因引入 Compose 运行时会使安装包体积明显增大，主分支不采用，仅在该分支保留供参考
 - 构建环境：AGP 9.1.0（内置 Kotlin）+ JDK 21 + `compileSdk 36` / `minSdk 29`
 - 配置同步：libxposed 远程偏好（Remote Preferences），模块 App 侧写入，Hook 进程内读取，固定 group 为 `settings`
 - 广告识别：针对应用商店组件化渲染的特点，命中组件关键字（`VideoList` / `Apps` / `ad` / `banner` / `recommend` 等）后隐藏对应容器
@@ -91,9 +92,8 @@
 - 顶栏推广位清理采用“黑白名单 + 结构启发式（abNormal 特殊图标）”双判定，并在“同组存在白名单成员”时才启用默认拒绝，避免旧版本结构被误杀；永远不会把顶栏清空
 
 ## 致谢
-- [callng/FuckMarketAds](https://github.com/callng/FuckMarketAds) 提供原始代码
+- [callng/NewFuckMarketAds](https://github.com/callng/NewFuckMarketAds) 提供原始代码
 - [lisrain/NewFuckMarketAds_Fork](https://github.com/lisrain/NewFuckMarketAds_Fork) 的稳定性增强与超级岛
-- [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix) 提供 HyperOS 风格的 Compose 组件库
 
 ## 免责声明
 本项目仅为技术研究成果，请勿用于商业或违反平台规则的场景。使用本模块产生的一切风险（如应用商店功能异常、设备故障等）均由使用者自行承担。
