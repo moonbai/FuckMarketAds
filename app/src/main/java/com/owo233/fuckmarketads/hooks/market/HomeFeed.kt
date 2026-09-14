@@ -6,6 +6,7 @@ import com.owo233.fuckmarketads.HookEnv
 import com.owo233.fuckmarketads.Settings
 import com.owo233.fuckmarketads.TAG
 import com.owo233.fuckmarketads.init.BaseHook
+import com.owo233.fuckmarketads.util.invokeAs
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 
