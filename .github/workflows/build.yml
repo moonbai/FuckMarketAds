@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -30,30 +30,98 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # NOTE: `set -o pipefail` is mandatory here. Without it the exit status of
+      # `gradlew | tee` is tee's (always 0), which silently turns every build
+      # failure into a green outcome.
       - name: Build Debug APK
         id: build
         continue-on-error: true
-        run: ./gradlew assembleDebug --stacktrace 2>&1 | tee gradle-build.log
-
-      # 失败时把日志写回仓库，方便在不方便查看 Actions 日志的场景下排查
-      - name: Dump failure log into repository
-        if: steps.build.outcome == 'failure'
         run: |
-          echo "=== assembleDebug failed at $(date -u '+%Y-%m-%dT%H:%M:%SZ') ===" > ci-failure.log
-          tail -n 600 gradle-build.log >> ci-failure.log
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee gradle-build.log
+          echo "gradlew_exit_code=${PIPESTATUS[0]}"
+
+      # Always produce a diagnostics bundle: useful for debugging even when the
+      # build reports success (e.g. "green but no APK produced").
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          {
+            echo "=== CI diagnostics ==="
+            echo "generated at : $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "workflow run : ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+            echo "head sha     : ${{ github.sha }}"
+            echo "build outcome: ${{ steps.build.outcome }}"
+            echo
+
+            echo "=== toolchain versions ==="
+            java -version 2>&1 | head -3 || true
+            echo "-- gradlew --version --"
+            timeout 120 ./gradlew --version 2>&1 | head -25 || echo "(gradlew --version failed or timed out)"
+            echo
+
+            echo "=== produced apk / aab ==="
+            if [ -d app/build/outputs ]; then
+              find app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) 2>/dev/null | sort || true
+            else
+              echo "(app/build/outputs does not exist)"
+            fi
+            echo
+
+            echo "=== app/build/outputs tree ==="
+            if [ -d app/build/outputs ]; then
+              find app/build/outputs -maxdepth 4 2>/dev/null | head -120 || true
+            else
+              echo "(app/build/outputs does not exist)"
+            fi
+            echo
+
+            if [ -f gradle-build.log ]; then
+              echo "=== kotlin compile error lines (e:) ==="
+              grep -nE '^e: ' gradle-build.log | head -120 || echo "(no kotlin error lines)"
+              echo
+              echo "=== gradle 'What went wrong' block ==="
+              awk '/^What went wrong:/{f=1} f{print} /^\* Try:/{exit}' gradle-build.log | head -80 || echo "(not found)"
+              echo
+              echo "=== gradle '* Exception is:' block ==="
+              awk '/^\* Exception is:/{f=1} f{print}' gradle-build.log | head -60 || echo "(not found)"
+              echo
+              echo "=== gradle 'Build failed' / 'FAILURE' block ==="
+              awk '/^(FAILURE:|BUILD FAILED)/{f=1} f{print}' gradle-build.log | head -60 || echo "(not found)"
+              echo
+              echo "=== gradle-build.log tail (1000) ==="
+              tail -n 1000 gradle-build.log
+            else
+              echo "(gradle-build.log was never created -> gradlew likely did not run)"
+            fi
+          } > ci-report.log 2>&1
+
+      - name: Upload diagnostics log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ci-report
+          path: ci-report.log
+          retention-days: 30
+
+      - name: Commit diagnostics into repository
+        if: always()
+        run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
-          git add -f ci-failure.log
-          git commit -m "ci: dump build failure log [skip ci]" || exit 0
+          git add -f ci-report.log
+          git commit -m "ci: dump build diagnostics [skip ci]" || exit 0
+          git pull --rebase origin master || true
           git push origin HEAD:master || exit 0
 
       - name: Upload APK artifact
         if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: FuckMarketAds-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          if-no-files-found: error
 
       - name: Fail job when build failed
         if: steps.build.outcome == 'failure'
