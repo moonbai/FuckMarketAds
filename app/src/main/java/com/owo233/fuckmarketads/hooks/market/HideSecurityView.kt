@@ -20,20 +20,16 @@ object HideSecurityView : BaseHook() {
             "com.xiaomi.market.business_ui.main.mine.app_security.MineAppSecurityView"
         ).apply {
             constructorFinder().forEach { ctor ->
-                HookEnv.base.hook(ctor).intercept { chain ->
-                    val result = chain.proceed()
-                    (chain.thisObject as View).visibility = View.GONE
-                    return@intercept result
+                ctor.hooked {
+                    val result = proceed()
+                    (thisObject as View).visibility = View.GONE
+                    return@hooked result
                 }
             }
 
-            methodFinder().filterByName("checkSettingSwitch").first().also { method ->
-                HookEnv.base.hook(method).intercept { false }
-            }
+            methodFinder().filterByName("checkSettingSwitch").first().hooked { false }
 
-            methodFinder().filterByName("checkShown").first().also { method ->
-                HookEnv.base.hook(method).intercept { false }
-            }
+            methodFinder().filterByName("checkShown").first().hooked { false }
         }
     }
 }

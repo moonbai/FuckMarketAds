@@ -38,16 +38,14 @@ object TabFilter : BaseHook() {
                 .filterByName("fromJSON")
                 .filterByParamCount(1)
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        val result = chain.proceed()
-                        val list = (result as List<*>).toMutableList()
-                        list.removeAll { item ->
-                            val tag = tabField.get(item) as String
-                            keepPrefixes.none { prefix -> tag.startsWith(prefix) }
-                        }
-                        return@intercept list
+                .hooked {
+                    val result = proceed()
+                    val list = (result as List<*>).toMutableList()
+                    list.removeAll { item ->
+                        val tag = tabField.get(item) as String
+                        keepPrefixes.none { prefix -> tag.startsWith(prefix) }
                     }
+                    return@hooked list
                 }
         }
     }

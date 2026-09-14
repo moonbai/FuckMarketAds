@@ -44,7 +44,7 @@ object UpdateDownloadAds : BaseHook() {
                 .methodFinder()
                 .filterByName("parseRecommendGroupResult")
                 .first()
-                .also { HookEnv.base.hook(it).intercept { null } }
+                .hooked { null }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: DownloadListFragment 拦截失败", it) }
 
         // 应用升级页面：移除推荐分组 + 默认展开全部
@@ -53,31 +53,31 @@ object UpdateDownloadAds : BaseHook() {
                 methodFinder()
                     .filterByName("generateRecommendGroupItems")
                     .first()
-                    .also { HookEnv.base.hook(it).intercept { null } }
+                    .hooked { null }
 
                 constructorFinder().forEach { ctor ->
-                    HookEnv.base.hook(ctor).intercept { chain ->
-                        val result = chain.proceed()
+                    ctor.hooked {
+                        val result = proceed()
 
                         pageCollapseStateExpand?.let { expandState ->
                             runCatching {
                                 fieldFinder()
                                     .filterByName("forceExpanded")
                                     .first()
-                                    .set(chain.thisObject, true)
+                                    .set(thisObject, true)
 
                                 fieldFinder()
                                     .filterByName("foldButtonVisible")
                                     .first()
-                                    .set(chain.thisObject, false)
+                                    .set(thisObject, false)
 
                                 fieldFinder()
                                     .filterByName("pageCollapseState")
                                     .first()
-                                    .set(chain.thisObject, expandState)
+                                    .set(thisObject, expandState)
                             }
                         }
-                        return@intercept result
+                        return@hooked result
                     }
                 }
             }

@@ -29,25 +29,23 @@ object HomeFeed : BaseHook() {
                 .methodFinder()
                 .filterByName("onBindData")
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        val bean = chain.args.getOrNull(1)
-                        if (bean != null) {
-                            val componentType = bean.invokeAs<String>("getComponentType")
-                            /**
-                             * nativeFeaturedHorizontalVideoList
-                             * horizontalApps
-                             */
-                            val blackList = listOf("VideoList", "Apps")
-                            if (blackList.any { componentType?.contains(it) == true }) {
-                                val view = chain.thisObject as View
-                                view.visibility = View.GONE
-                                view.layoutParams.height = 0
-                                return@intercept null
-                            }
+                .hooked {
+                    val bean = args.getOrNull(1)
+                    if (bean != null) {
+                        val componentType = bean.invokeAs<String>("getComponentType")
+                        /**
+                         * nativeFeaturedHorizontalVideoList
+                         * horizontalApps
+                         */
+                        val blackList = listOf("VideoList", "Apps")
+                        if (blackList.any { componentType?.contains(it) == true }) {
+                            val view = thisObject as View
+                            view.visibility = View.GONE
+                            view.layoutParams.height = 0
+                            return@hooked null
                         }
-                        return@intercept chain.proceed()
                     }
+                    return@hooked proceed()
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: ListAppsView 拦截失败", it) }
 
@@ -57,17 +55,15 @@ object HomeFeed : BaseHook() {
             ).methodFinder()
                 .filterByName("onBindData")
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        val view = chain.thisObject as View
-                        view.visibility = View.GONE
-                        val lp = view.layoutParams
-                        if (lp != null) {
-                            lp.height = 0
-                            view.layoutParams = lp
-                        }
-                        return@intercept null
+                .hooked {
+                    val view = thisObject as View
+                    view.visibility = View.GONE
+                    val lp = view.layoutParams
+                    if (lp != null) {
+                        lp.height = 0
+                        view.layoutParams = lp
                     }
+                    return@hooked null
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: VerticalHotWordsView 拦截失败", it) }
     }

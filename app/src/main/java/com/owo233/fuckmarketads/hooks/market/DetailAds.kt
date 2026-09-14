@@ -41,7 +41,7 @@ object DetailAds : BaseHook() {
                             "isBrowserMarketAdOff",
                             "isBrowserSourceFileAdOff"
                         )
-                    }.forEach { HookEnv.base.hook(it).intercept { true } }
+                    }.forEach { it.hooked { true } }
 
                 methodFinder()
                     .filter {
@@ -55,7 +55,7 @@ object DetailAds : BaseHook() {
                             "isSourceFileShowAdStyle",
                             "getShowOpenScreenAd"
                         )
-                    }.forEach { HookEnv.base.hook(it).intercept { false } }
+                    }.forEach { it.hooked { false } }
             }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: AppDetailV3 拦截失败", it) }
 
@@ -64,13 +64,11 @@ object DetailAds : BaseHook() {
                 .methodFinder()
                 .filterByName("initParams")
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        detailTypeV4?.let { v4 ->
-                            chain.thisObject?.setFieldValue("detailType", v4)
-                        }
-                        return@intercept chain.proceed()
+                .hooked {
+                    detailTypeV4?.let { v4 ->
+                        thisObject?.setFieldValue("detailType", v4)
                     }
+                    return@hooked proceed()
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: BaseDetailActivity 拦截失败", it) }
     }

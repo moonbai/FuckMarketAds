@@ -32,7 +32,7 @@ object MainTabAds : BaseHook() {
                         "trySplash",
                         "fetchSearchHotList"
                     )
-                }.forEach { HookEnv.base.hook(it).intercept { null } }
+                }.forEach { it.hooked { null } }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name 拦截失败", it) }
     }
 }

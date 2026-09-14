@@ -13,6 +13,7 @@ import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
  *
  * 修复点：原先开屏相关的多个方法 hook 写在一个大 init 里，一旦某个类/方法因商店更新
  * 而找不到，整段都会失败。这里把每个拦截点用 [runCatching] 隔离，单个失效不影响其余。
+ * 每个拦截点通过 [com.owo233.fuckmarketads.init.BaseHook.hooked] 受子开关实时控制。
  */
 object SplashAds : BaseHook() {
 
@@ -33,7 +34,7 @@ object SplashAds : BaseHook() {
                             "needRequestFocusVideo",
                             "isPassiveSplashAd"
                         )
-                    }.forEach { HookEnv.base.hook(it).intercept { false } }
+                    }.forEach { it.hooked { false } }
 
                 methodFinder()
                     .filter {
@@ -43,7 +44,7 @@ object SplashAds : BaseHook() {
                             "preLoadSplashCover",
                             "shownSplashCoverIfNeed"
                         )
-                    }.forEach { HookEnv.base.hook(it).intercept { null } }
+                    }.forEach { it.hooked { null } }
             }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: SplashManager 拦截失败", it) }
 
@@ -58,12 +59,12 @@ object SplashAds : BaseHook() {
                             "isOpenFromMsa",
                             "isRequesting"
                         )
-                    }.forEach { HookEnv.base.hook(it).intercept { false } }
+                    }.forEach { it.hooked { false } }
 
                 methodFinder()
                     .filterByName("tryToRequestSplashAd")
                     .first()
-                    .also { HookEnv.base.hook(it).intercept { null } }
+                    .hooked { null }
             }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: DetailSplashAdManager 拦截失败", it) }
     }

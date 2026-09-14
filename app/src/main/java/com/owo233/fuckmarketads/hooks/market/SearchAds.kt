@@ -34,13 +34,11 @@ object SearchAds : BaseHook() {
             ).methodFinder()
                 .filterByName("getRequestParams")
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        val result = chain.proceed()
-                        @Suppress("UNCHECKED_CAST")
-                        return@intercept (result as Map<String, Any>).toMutableMap().apply {
-                            this["adFlag"] = 0
-                        }
+                .hooked {
+                    val result = proceed()
+                    @Suppress("UNCHECKED_CAST")
+                    return@hooked (result as Map<String, Any>).toMutableMap().apply {
+                        this["adFlag"] = 0
                     }
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: 搜索建议拦截失败", it) }
@@ -53,21 +51,19 @@ object SearchAds : BaseHook() {
                 methodFinder()
                     .filterByName("parseResponseData")
                     .first()
-                    .also { method ->
-                        HookEnv.base.hook(method).intercept { chain ->
-                            val result = chain.proceed()
-                            // com.xiaomi.market.common.component.componentbeans.SearchHistoryComponent
-                            @Suppress("UNCHECKED_CAST")
-                            return@intercept (result as List<Any>).filter { component ->
-                                component.javaClass.name.contains("SearchHistoryComponent")
-                            }
+                    .hooked {
+                        val result = proceed()
+                        // com.xiaomi.market.common.component.componentbeans.SearchHistoryComponent
+                        @Suppress("UNCHECKED_CAST")
+                        return@hooked (result as List<Any>).filter { component ->
+                            component.javaClass.name.contains("SearchHistoryComponent")
                         }
                     }
 
                 methodFinder()
                     .filterByName("isLoadMoreEndGone")
                     .first()
-                    .also { HookEnv.base.hook(it).intercept { true } }
+                    .hooked { true }
             }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: 搜索页面拦截失败", it) }
 
@@ -78,14 +74,12 @@ object SearchAds : BaseHook() {
             ).methodFinder()
                 .filterByName("parseResponseData")
                 .first()
-                .also { method ->
-                    HookEnv.base.hook(method).intercept { chain ->
-                        val result = chain.proceed()
-                        // com.xiaomi.market.common.component.componentbeans.ListAppComponent
-                        @Suppress("UNCHECKED_CAST")
-                        return@intercept (result as List<Any>).filter { component ->
-                            component.javaClass.name.contains("ListAppComponent")
-                        }
+                .hooked {
+                    val result = proceed()
+                    // com.xiaomi.market.common.component.componentbeans.ListAppComponent
+                    @Suppress("UNCHECKED_CAST")
+                    return@hooked (result as List<Any>).filter { component ->
+                        component.javaClass.name.contains("ListAppComponent")
                     }
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: 搜索结果拦截失败", it) }
