@@ -174,8 +174,8 @@ private fun TabKeepCard(activity: MainActivity) {
     val enabled = (activity.switches[Settings.KEY_MASTER] ?: true) &&
         (activity.switches[Settings.KEY_TAB_FILTER] ?: true)
 
-    Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        TAB_ITEMS.forEach { (tag, label) ->
+        Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Settings.TAB_ITEMS.forEach { (tag, label) ->
             CheckboxPreference(
                 title = label,
                 checked = activity.tabKeep[tag] ?: true,
@@ -198,6 +198,3 @@ private fun ModuleCard(activity: MainActivity) {
         )
     }
 }
-
-/** 供 UI 使用的紧凑 import 别名（避免和其它 Settings 同名混淆） */
-private val TAB_ITEMS = Settings.TAB_ITEMS
