@@ -85,6 +85,27 @@ object RankAds : BaseHook() {
         "com.xiaomi.market.common.view.ListAppsView"
     )
 
+    /**
+     * 数据层拦截用的方法名候选。
+     * 取名自组件化列表的常见解析入口（参考实现的搜索页用的是 `parseResponseData`）。
+     */
+    private val parseMethods = listOf(
+        "parseResponseData", "parseResponse", "parseData", "parseResult",
+        "handleResponseData", "buildComponents", "getComponents"
+    )
+
+    /**
+     * 数据层拦截的宿主类候选。
+     * 只在榜单相关类上挂，避免在别的页面误删组件。
+     */
+    private val dataOwnerClasses = listOf(
+        "com.xiaomi.market.business_ui.rank.RankFragment",
+        "com.xiaomi.market.business_ui.rank.RankListFragment",
+        "com.xiaomi.market.business_ui.rank.RankSubFragment",
+        "com.xiaomi.market.business_ui.rank.RankChildFragment",
+        "com.xiaomi.market.business_ui.rank.RankTabFragment"
+    )
+
     /** 中文广告角标：按「包含」匹配，实际文案常带后缀（如「广告 · 下载」） */
     private val cnLabels = listOf("广告", "推广", "赞助", "热推")
     /** 英文广告角标：必须按**词**匹配，否则 Adobe 会因为含 "ad" 被整条误杀 */
@@ -133,6 +154,12 @@ object RankAds : BaseHook() {
     private var lastToastAt = 0L
 
     override fun init() {
+        // 第一优先：从**数据层**剔除广告。
+        // 视图层那套（宽度 / 文案 / 类名）都是在跟已渲染出来的东西较劲，
+        // 而广告本来就是服务端下发的一个组件对象——在解析结果里直接把它拿掉，
+        // 后面就没有任何"怎么把这条藏干净"的问题了。
+        hookDataLayer()
+
         var bound = 0
 
         // 光靠猜类名是不够的：实测 10 个候选里只命中 1 个。
@@ -188,6 +215,70 @@ object RankAds : BaseHook() {
             "$name: 已挂载 $bound 个绑定点（候选 ${candidates.size} 个 + 扫描 ${discovered.size} 个）",
             null
         )
+    }
+
+    /**
+     * 数据层拦截：hook 榜单的数据解析方法，从返回的组件列表里把广告剔除。
+     *
+     * 思路来自 XiaomiHelper 对搜索页的处理——它不碰任何一个 View，
+     * 而是 hook `NativeSearchResultFragment.parseResponseData`，
+     * 对解析出的组件列表做 `retainAll { 白名单组件 }`。
+     * 广告在数据层面就没有了，视图层自然干净，也不会出现"藏了但留个空位"。
+     *
+     * 这里的做法是**反向排除**而不是白名单保留：榜单的组件类型太多
+     * （应用项、头部、分类、加载更多……），白名单很容易把正常内容也误杀；
+     * 只剔除明确命中广告特征的组件，风险小得多。
+     *
+     * 方法名与组件类名都做多候选，命中不上就静默跳过，退回视图层判据。
+     */
+    private fun hookDataLayer() {
+        parseMethods.forEach { method ->
+            dataOwnerClasses.forEach { owner ->
+                runCatching {
+                    ClassUtil.loadClass(owner)
+                        .methodFinder()
+                        .filterByName(method)
+                        .forEach { m ->
+                            m.hooked {
+                                val result = proceed()
+                                val filtered = dropAdComponents(result)
+                                result(if (filtered != null) filtered else result)
+                            }
+                        }
+                }
+            }
+        }
+    }
+
+    /**
+     * 从解析结果里剔除广告组件。
+     * 返回 null 表示"没动过"，调用方应原样返回，避免把非列表结果搞坏。
+     */
+    private fun dropAdComponents(result: Any?): Any? {
+        val list = when (result) {
+            is List<*> -> result
+            // 有些版本把组件列表包在 Pair / data 对象里，这里只处理 List 这一种最常见形态
+            else -> return null
+        }
+        if (list.isEmpty()) return null
+        val kept = list.filterNot { isAdComponent(it) }
+        if (kept.size == list.size) return null
+        HookEnv.base.log(
+            Log.WARN, TAG, "$name: 数据层剔除 ${list.size - kept.size}/${list.size} 个广告组件", null
+        )
+        return kept
+    }
+
+    /** 组件对象是否广告：类名 / 字符串字段命中广告特征 */
+    private fun isAdComponent(component: Any?): Boolean {
+        val c = component ?: return false
+        if (tokens(c.javaClass.simpleName).any { it in adTokens }) return true
+        // 组件对象里的组件类型字段（组件化渲染里通常叫 type / componentType）
+        typeGetters.forEach { getter ->
+            val text = readType(c, getter) ?: return@forEach
+            if (tokens(text).any { it in adTokens }) return true
+        }
+        return false
     }
 
     /**

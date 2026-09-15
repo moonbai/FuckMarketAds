@@ -69,6 +69,29 @@ object UiCleanup : BaseHook() {
     /** 要把内部零件撑到整行宽的应用升级卡片 */
     private val cardIds = listOf("update_layout", "mine_update_layout")
 
+    /**
+     * 应用升级卡片的**渲染方法**：命中即让它们直接返回 null。
+     *
+     * 思路来自 XiaomiHelper —— 它 hook `MineUpdateView` 的
+     * `applyUpdateViewOrchardStyle` / `applyViewOrchardState` /
+     * `applyEmptyViewOrchardState` 并 `result(null)`，
+     * 从源头上关掉那套「果园皮肤」。
+     *
+     * 这比在视图层改尺寸稳得多：皮肤（草地背景、异形卡片）本身就是渲染出来的，
+     * 拦掉渲染方法就不会画，也谈不上"改坏布局"。
+     */
+    private val orchardMethods = listOf(
+        "applyUpdateViewOrchardStyle",
+        "applyViewOrchardState",
+        "applyEmptyViewOrchardState"
+    )
+
+    /** 应用升级卡片的 View 类（果园皮肤与卡片内部都在这里） */
+    private val updateViewClasses = listOf(
+        "com.xiaomi.market.business_ui.main.mine.view.MineUpdateView",
+        "com.xiaomi.market.business_ui.main.mine.view.MineUpdateLayout"
+    )
+
     /** 卡片里需要横排铺满的图标（app_icon1..4，按 id 名拼） */
     private val iconNames = (1..4).map { "app_icon$it" }
 
@@ -94,6 +117,33 @@ object UiCleanup : BaseHook() {
         // 路径 B：进入这两个页面时整树补扫
         hookActivityRescan("com.xiaomi.market.business_ui.main.MarketTabActivity")
         hookActivityRescan("com.xiaomi.market.ui.detail.AppDetailActivityInner")
+
+        hookOrchardSkin()
+    }
+
+    /**
+     * 关掉应用升级卡片的「果园皮肤」。
+     *
+     * 这是 XiaomiHelper 的思路：不去跟渲染结果较劲，而是让渲染方法直接返回 null。
+     * 之前我在视图层调尺寸，结果卡片被撑得极高、图标竖排——那是因为
+     * 皮肤本身就是一套自绘背景 + 异形约束，改它的尺寸只会把整套约束搞乱。
+     */
+    private fun hookOrchardSkin() {
+        if (!Settings.isEnabled(Settings.KEY_MINE_CLEANUP, true)) return
+        updateViewClasses.forEach { owner ->
+            runCatching {
+                val cls = ClassUtil.loadClass(owner)
+                orchardMethods.forEach { method ->
+                    cls.methodFinder()
+                        .filterByName(method)
+                        .forEach { m ->
+                            m.hooked { result(null) }
+                        }
+                }
+            }.onFailure {
+                HookEnv.base.log(Log.VERBOSE, TAG, "$name: 无 $owner，跳过果园皮肤处理", null)
+            }
+        }
     }
 
     private fun hookActivityRescan(className: String) {
