@@ -483,6 +483,9 @@ class MainActivity : Activity(), ServiceStateListener {
                 it.topMargin = dp(2)
                 it.bottomMargin = dp(8)
             }
+            // 整块再向右让出 12dp：多选是某个开关的**子选项**，
+            // 缩进去一点才能一眼看出它从属于上面那行，而不是一个平级功能
+            setPadding(dp(12), 0, 0, 0)
         }
         block.addView(TextView(this).apply {
             text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"

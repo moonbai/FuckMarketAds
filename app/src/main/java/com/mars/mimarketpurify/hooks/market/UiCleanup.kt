@@ -33,11 +33,17 @@ object UiCleanup : BaseHook() {
     override val name: String
         get() = "界面元素屏蔽"
 
-    /** 「我的」页：广告容器 / 官方入口 tab / 手机清理入口 */
+    /**
+     * 「我的」页：广告容器 / 官方入口 tab / 手机清理入口 / 应用卸载入口。
+     *
+     * 手机清理与应用卸载在「我的」页是**同一组里的相邻两行**，只隐藏前者时
+     * 外层容器仍在，看起来就像没生效；两个一起屏蔽才干净。
+     */
     private val mineIds = listOf(
         "mine_ad_container",
         "mine_middle_menu_container",
-        "phone_clear_forbid_layout"
+        "phone_clear_forbid_layout",
+        "mine_uninstall_app_layout"
     )
 
     /** 应用详情页的「精选」入口 */

@@ -16,8 +16,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 /**
- * 「关于」页：只保留关键信息 —— 应用卡片（版本 / 包名 / 源码入口）、
- * 一句话简介、主要功能清单、遗漏广告的反馈方式，页脚放致谢与免责。
+ * 「关于」页只保留关键信息，全页共两张卡片：
+ * 应用卡（版本 / 包名 / 一句话简介，整卡点击跳源码）+ 功能清单，
+ * 外加一节「反馈遗漏的广告」，页脚放致谢与免责。
  *
  * 与主页保持同一套结构（固定顶栏 + 内容区滚动）与同一套 [Ui] 令牌。
  * 顶部返回键不再是纤细的文本符号「‹ 返回」，而是 48dp 圆形图标按钮
@@ -69,33 +70,26 @@ class AboutActivity : Activity() {
         buildTopBar(header)
         buildAppCard()
 
-        addSection("简介")
-        addCardBody(
-            "小米应用商店净化模块。通过 Hook 商店的渲染逻辑移除广告与推荐，并提供可勾选的界面精简选项。" +
-                "无联网、无上报，仅在应用商店进程内生效。"
-        )
-
-        addSection("主要功能")
+        addSection("功能")
         addCardBody(
             listOf(
                 "广告移除：开屏、前台推荐、信息流、搜索、升级 / 下载页、详情页、榜单、顶栏推广位",
                 "界面精简：安全检测、领水果、我的页、详情页精选、底部标签栏",
                 "功能增强：下载超级岛（无视服务端灰度）",
-                "稳定性：崩溃自毁拦截、回滚死锁解除、配置备份恢复、全局容错",
+                "稳定性：崩溃自毁拦截、配置备份恢复、全局容错",
                 "模块自身：隐藏桌面图标（仍可从框架进入主页）"
             ).joinToString("\n") { "· $it" }
         )
 
         addSection("反馈遗漏的广告")
         addCardBody(
-            "榜单各分类（含游戏榜）的列表项由服务端下发，不同商店版本差异很大。若仍有漏网广告，" +
-                "打开主页「模块自身 → 榜单调试提示」，重启商店后抓取 logcat 中 " +
+            "榜单各分类（含游戏榜）的列表项由服务端下发，版本差异大。" +
+                "若仍有漏网广告：开启主页「榜单调试提示」，重启商店后抓取 logcat 中 " +
                 "MiMarketPurify 的 `[rank-tree]` 视图树，连同商店版本号反馈即可。"
         )
 
         content.addView(TextView(this).apply {
             text = "上游：callng/NewFuckMarketAds、lisrain/NewFuckMarketAds_Fork\n" +
-                "开关实时生效，个别 ROM 缓存偏好时重启一次商店即可。\n" +
                 "仅供技术研究，使用风险由使用者自行承担。"
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
@@ -170,6 +164,15 @@ class AboutActivity : Activity() {
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
             setPadding(0, dp(3), 0, 0)
+        })
+        // 一句话简介直接挂在应用卡里，不再单独占一张卡片
+        info.addView(TextView(this).apply {
+            text = "移除小米应用商店各处广告与推荐，并提供可勾选的界面精简选项。" +
+                "无联网、无上报，仅在商店进程内生效。"
+            textSize = Ui.ROW_SUMMARY
+            setTextColor(Ui.TEXT_SECONDARY)
+            setLineSpacing(0f, 1.4f)
+            setPadding(0, dp(8), 0, 0)
         })
 
         row.addView(info)

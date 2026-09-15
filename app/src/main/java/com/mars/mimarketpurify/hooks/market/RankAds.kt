@@ -85,8 +85,10 @@ object RankAds : BaseHook() {
         "com.xiaomi.market.common.view.ListAppsView"
     )
 
-    /** 广告角标文字：不依赖 bean 字段的第二条腿，按可见文本判断 */
-    private val adLabels = setOf("广告", "推广", "赞助", "热推", "ad", "ads")
+    /** 中文广告角标：按「包含」匹配，实际文案常带后缀（如「广告 · 下载」） */
+    private val cnLabels = listOf("广告", "推广", "赞助", "热推")
+    /** 英文广告角标：必须按**词**匹配，否则 Adobe 会因为含 "ad" 被整条误杀 */
+    private val enLabels = setOf("ad", "ads", "sponsor", "sponsored", "promoted")
 
     /**
      * 排名徽章的资源名。榜单里第 1/2/3 名与 4 名以后都靠它显示名次，
@@ -205,13 +207,21 @@ object RankAds : BaseHook() {
         return found
     }
 
-    /** 从参数里挑出疑似 bean 的对象：排除 View 与基础类型 */
+    /**
+     * 从参数里挑出疑似 bean 的对象：排除 View、基础类型，以及**宿主 Fragment / Activity**。
+     *
+     * 最后这条是实测出来的坑：`onBindData` 常常把所在 Fragment 一起传进来，
+     * 于是 `firstOrNull` 挑中的是 Fragment（日志里表现为 `<- RankTabFragment`），
+     * 后续十几个类型 getter 全打在 Fragment 上，自然永远返回 null。
+     * 把 Fragment / Activity / Context 排除掉，才可能拿到真正的 bean。
+     */
     private fun isCandidateBean(arg: Any?): Boolean {
-        return arg != null &&
-            arg !is View &&
-            arg !is Number &&
-            arg !is Boolean &&
-            arg !is CharSequence
+        if (arg == null) return false
+        if (arg is View || arg is Number || arg is Boolean || arg is CharSequence) return false
+        val n = arg.javaClass.name
+        return !n.contains("Fragment") &&
+            !n.contains("Activity") &&
+            !n.contains("Context")
     }
 
     private fun isAdBean(bean: Any): Boolean {
@@ -409,13 +419,13 @@ object RankAds : BaseHook() {
     private fun scanBadgeWidths(list: ViewGroup) {
         val count = list.childCount.coerceAtMost(32)
         val samples = ArrayList<Pair<View, Int>>(count)
-        var missing = 0
+        val missing = ArrayList<View>()
         for (i in 0 until count) {
             val item = list.getChildAt(i) ?: continue
             if (item.visibility != View.VISIBLE) continue
             val badge = findByIdName(item, RANK_BADGE)
             if (badge == null) {
-                missing++
+                missing += item
                 continue
             }
             val w = if (badge.width > 0) badge.width else badge.measuredWidth
@@ -431,7 +441,17 @@ object RankAds : BaseHook() {
         } else {
             samples.take(12).joinToString(",") { it.second.toString() }
         }
-        val shape = "[rank] 徽章宽度 $widths px / 阈值 ${threshold}px / 无徽章 $missing 项"
+        val shape = "[rank] 徽章宽度 $widths px / 阈值 ${threshold}px / 无徽章 ${missing.size} 项"
+
+        // 名次徽章缺失：广告项压根不显示名次。这是很强的一条判据，但前三名的
+        // 大卡片也可能没有徽章，所以只在「绝大多数项都有、只有极少数没有」时才下手
+        if (samples.size >= 4 && missing.isNotEmpty() && missing.size * 4 <= samples.size) {
+            missing.forEach { hide(it) }
+            HookEnv.base.log(
+                Log.WARN, TAG, "$name: 无名次徽章隐藏 ${missing.size} 条（$shape）", null
+            )
+        }
+
         if (hits.isEmpty()) {
             reportWidths(list, shape, 0)
             return
@@ -505,12 +525,20 @@ object RankAds : BaseHook() {
         return null
     }
 
-    /** 递归查找广告角标文本，最多 5 层 */
+    /**
+     * 递归查找广告角标文本，最多 5 层。
+     *
+     * 中文角标用「包含」匹配——实际文案常常是「广告 · 下载」而不是光秃秃的「广告」；
+     * 英文标签则必须按**词**匹配，否则 `Adobe` 会因为含 "ad" 被整条误杀。
+     */
     private fun hasAdLabel(view: View, depth: Int): Boolean {
         if (depth > 5) return false
         if (view is TextView) {
-            val t = view.text?.toString()?.trim()?.lowercase()
-            if (t != null && t in adLabels) return true
+            val t = view.text?.toString()?.trim()?.lowercase() ?: ""
+            if (t.isNotEmpty()) {
+                if (cnLabels.any { it in t }) return true
+                if (tokens(t).any { it in enLabels }) return true
+            }
         }
         if (view !is ViewGroup) return false
         val count = view.childCount.coerceAtMost(16)
