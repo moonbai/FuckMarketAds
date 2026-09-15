@@ -43,7 +43,7 @@ class AboutActivity : Activity() {
         }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            spaceBetween = dp(16) // 卡片/区块之间统一间距
+            // ❌ 删除 spaceBetween，原生LinearLayout不支持
         }
         scroll.addView(content)
 
@@ -119,7 +119,7 @@ class AboutActivity : Activity() {
             isClickable = true
             isFocusable = true
             layoutParams = LinearLayout.LayoutParams(dp(Ui.TOUCH_MIN), dp(Ui.TOUCH_MIN)).also {
-                it.marginStart = -dp(8) // 修正负边距，防止图标被裁切
+                it.marginStart = -dp(8)
             }
             setOnClickListener { finish() }
         })
@@ -148,7 +148,7 @@ class AboutActivity : Activity() {
     /**
      * 应用信息卡片
      * 布局：左侧预留图标位 + 右侧文本信息 + 末尾跳转箭头
-     * 整张卡片点击打开源码仓库，不再单独一行写“点击查看源码”
+     * 整张卡片点击打开源码仓库
      */
     private fun buildAppCard() {
         val card = card()
@@ -219,7 +219,15 @@ class AboutActivity : Activity() {
     }
 
     private fun addSection(title: String) {
-        content.addView(sectionTitle(title))
+        val titleView = sectionTitle(title)
+        // 给section标题增加上边距，模拟原来spaceBetween的间距
+        titleView.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also {
+            it.topMargin = dp(16)
+        }
+        content.addView(titleView)
     }
 
     private fun addCardBody(text: String) {
@@ -227,6 +235,13 @@ class AboutActivity : Activity() {
         card.addView(cardText(text).apply {
             setPadding(dp(16), dp(16), dp(16), dp(16))
         })
+        // 卡片增加上边距，实现区块间距
+        card.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also {
+            it.topMargin = dp(12)
+        }
         content.addView(card)
     }
 }
