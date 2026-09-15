@@ -59,7 +59,7 @@ class AboutActivity : Activity() {
         addSection("参考项目")
         buildReferenceProjects()
 
-        // 4. 底部文字
+        // 底部文字
         content.addView(TextView(this).apply {
             text = "不乱拉屎的应用商店才是好的应用商店@Mars"
             textSize = Ui.MICRO
@@ -107,7 +107,7 @@ class AboutActivity : Activity() {
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
 
-        // 1. 应用图标变大：48dp → 64dp
+        // 应用图标变大：48dp → 64dp
         val appIcon = ImageView(this).apply {
             setImageResource(R.mipmap.ic_launcher)
             layoutParams = LinearLayout.LayoutParams(dp(64), dp(64))
@@ -123,7 +123,7 @@ class AboutActivity : Activity() {
         }
 
         info.addView(cardTitle("Mi Market Purify"))
-        // 1. 副标题精简：去掉包名，只保留版本+一句话描述
+        // 副标题精简：去掉包名，只保留版本+一句话描述
         info.addView(TextView(this).apply {
             text = "v${BuildConfig.VERSION_NAME}"
             textSize = Ui.ROW_SUMMARY
@@ -180,7 +180,7 @@ class AboutActivity : Activity() {
                 })
             })
 
-            // 2. 卡片间距：10dp → 8dp
+            // 卡片间距：10dp → 8dp
             if (index > 0) {
                 card.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
                     it.topMargin = dp(8)
@@ -193,11 +193,11 @@ class AboutActivity : Activity() {
         content.addView(container)
     }
 
-    // 3. 只保留前两个参考项目，添加跳转链接
+    // 修复：改用 Pair<String, String>，不再使用Triple，解决类型推断报错
     private fun buildReferenceProjects() {
         val references = listOf(
-            "NewFuckMarketAds" to Triple("callng", "https://github.com/callng/NewFuckMarketAds"),
-            "NewFuckMarketAds_Fork" to Triple("lisrain", "https://github.com/lisrain/NewFuckMarketAds_Fork")
+            "NewFuckMarketAds" to Pair("callng", "https://github.com/callng/NewFuckMarketAds"),
+            "NewFuckMarketAds_Fork" to Pair("lisrain", "https://github.com/lisrain/NewFuckMarketAds_Fork")
         )
 
         val card = card()
@@ -210,8 +210,8 @@ class AboutActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
         }
 
-        references.forEachIndexed { index, (name, triple) ->
-            val (author, url) = triple
+        references.forEachIndexed { index, (name, pair) ->
+            val (author, url) = pair
             row.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
