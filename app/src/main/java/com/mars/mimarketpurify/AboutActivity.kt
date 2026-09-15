@@ -1,47 +1,74 @@
 package com.mars.mimarketpurify
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 /**
- * 「关于」页：展示软件介绍、功能概要、致谢、技术说明与免责声明。
+ * 「关于」页：软件介绍、版本与包名、主要功能、致谢、技术说明、免责声明。
  *
- * 与主主页保持一致的实现约束：
- *  - 纯原生 View 手写布局，不引入任何 UI 框架（避免增大安装包体积）；
- *  - 同样处理 edge-to-edge 的系统栏内边距；
- *  - 不参与 Xposed 无关逻辑，仅为静态信息展示。
+ * 与主主页保持同一套结构（固定顶栏 + 内容区滚动）与同一套 [Ui] 令牌，
+ * 让用户在不同页之间来回时不会遇到两套不同的标题高度 / 分隔线 / 反馈方式。
+ * 顶部应用卡片整体可点击，直达源码仓库 [Ui.REPO_URL]。
  */
 class AboutActivity : Activity() {
 
-    private lateinit var container: LinearLayout
+    private lateinit var content: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val scroll = ScrollView(this).apply {
-            setBackgroundColor(0xFFF2F2F7.toInt())
-            clipToPadding = false
-        }
-        container = LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(Ui.BG)
         }
-        scroll.addView(container)
-        setContentView(scroll)
-        applySystemBarInsets(scroll)
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Ui.BG)
+        }
+        val scroll = ScrollView(this)
+        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(content)
 
-        buildTopBar()
+        root.addView(
+            header,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+        setContentView(root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            header.setPadding(dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.top, dp(Ui.PAGE_H), dp(12))
+            content.setPadding(
+                dp(Ui.PAGE_H), dp(6), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
+
+        buildTopBar(header)
         buildAppCard()
 
         addSection("软件介绍")
-        addBody(
+        addCardBody(
             "本项目是对原版应用商店去广告模块的深度增强重构版本。在保留 Hook 应用商店渲染逻辑" +
                 "实现净化的核心思路之上，补齐可视化控制面板、新增大量净化规则，并彻底修复原版长期" +
                 "存在的「开关需要重启」「子开关不生效」的缺陷。\n\n" +
@@ -50,7 +77,7 @@ class AboutActivity : Activity() {
         )
 
         addSection("主要功能")
-        addBody(
+        addCardBody(
             listOf(
                 "广告屏蔽：开屏广告、前台广告与推荐、信息流广告、搜索推荐、" +
                     "升级 / 下载页推荐、详情页广告、榜单广告、首页顶栏云控推广位",
@@ -62,13 +89,13 @@ class AboutActivity : Activity() {
         )
 
         addSection("开关何时生效")
-        addBody(
+        addCardBody(
             "每个功能开关都在对应 hook 的每次调用时实时读取远程偏好，因此一般无需手动重启" +
                 "目标应用；若个别 ROM / 框架版本对远程偏好做了快照缓存，重启一次应用商店即可确保生效。"
         )
 
         addSection("致谢")
-        addBody(
+        addCardBody(
             listOf(
                 "callng/NewFuckMarketAds —— 提供原始代码",
                 "lisrain/NewFuckMarketAds_Fork —— 稳定性增强与超级岛",
@@ -78,7 +105,7 @@ class AboutActivity : Activity() {
         )
 
         addSection("技术说明")
-        addBody(
+        addCardBody(
             listOf(
                 "Hook 框架：libxposed 101.0.0 + ezXHelper",
                 "主页 UI：原生 View 手写布局，零 UI 框架依赖",
@@ -89,122 +116,105 @@ class AboutActivity : Activity() {
         )
 
         addSection("免责声明")
-        addBody(
+        addCardBody(
             "本项目仅为技术研究成果，请勿用于商业或违反平台规则的场景。使用本模块产生的一切风险" +
                 "（如应用商店功能异常、设备故障等）均由使用者自行承担。"
         )
     }
 
-    /** 顶部返回入口：布局层面避免依赖系统 ActionBar */
-    private fun buildTopBar() {
+    /** 固定顶栏：返回 + 页标题，与主页保持同样的内边距与分隔线 */
+    private fun buildTopBar(header: LinearLayout) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         row.addView(TextView(this).apply {
             text = "‹ 返回"
-            textSize = 14f
-            setTextColor(0xFF007AFF.toInt())
-            setPadding(0, dp(4), dp(12), dp(12))
-            isClickable = true
-            isFocusable = true
-            val ta = this@AboutActivity.obtainStyledAttributes(
-                intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
-            )
-            setBackgroundResource(ta.getResourceId(0, 0))
-            ta.recycle()
+            textSize = Ui.CAPTION
+            setTextColor(Ui.ACCENT)
+            setPadding(0, dp(4), dp(14), dp(4))
+            tappable(this@AboutActivity)
             setOnClickListener { finish() }
         })
         row.addView(TextView(this).apply {
             text = "关于"
-            textSize = 20f
+            textSize = Ui.PAGE_TITLE
             setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFF1C1C1E.toInt())
-            setPadding(0, 0, 0, dp(12))
+            setTextColor(Ui.TEXT_PRIMARY)
         })
-        container.addView(row)
+        header.addView(row)
+
+        header.addView(View(this).apply {
+            setBackgroundColor(Ui.DIVIDER)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1).coerceAtLeast(1)
+            )
+        })
     }
 
-    /** 应用名 / 版本 / 包名信息卡片 */
+    /** 应用名 / 版本 / 包名卡片：整体可点击并跳转源码仓库 */
     private fun buildAppCard() {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+        val card = card()
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        card.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).also { it.bottomMargin = dp(6) }
-
-        card.addView(TextView(this).apply {
-            text = "Mi Market Purify"
-            textSize = 18f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFF1C1C1E.toInt())
-        })
-        card.addView(TextView(this).apply {
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ).also { it.marginEnd = dp(10) }
+        }
+        info.addView(cardTitle("Mi Market Purify"))
+        info.addView(TextView(this).apply {
             text = "版本 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）"
-            textSize = 12f
-            setTextColor(0xFF8E8E93.toInt())
-            setPadding(0, dp(2), 0, 0)
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
+            setPadding(0, dp(3), 0, 0)
         })
-        card.addView(TextView(this).apply {
+        info.addView(TextView(this).apply {
             text = packageName
-            textSize = 11f
-            setTextColor(0xFFA0A0A5.toInt())
-            setPadding(0, dp(2), 0, 0)
+            textSize = Ui.MICRO
+            setTextColor(Ui.TEXT_TERTIARY)
+            setPadding(0, dp(3), 0, 0)
         })
-        container.addView(card)
+
+        row.addView(info)
+        row.addView(TextView(this).apply {
+            text = "›"
+            textSize = 22f
+            setTextColor(Ui.TEXT_TERTIARY)
+        })
+        card.addView(row)
+        card.addView(TextView(this).apply {
+            text = "点击查看源码仓库"
+            textSize = Ui.MICRO
+            setTextColor(Ui.ACCENT)
+            setPadding(0, dp(10), 0, 0)
+        })
+
+        // 矩形 ripple：明确整张卡片是一个点击目标
+        card.tappable(this, borderless = false)
+        card.setOnClickListener { openRepo() }
+        content.addView(card)
+    }
+
+    private fun openRepo() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Ui.REPO_URL)))
+        }.onFailure {
+            Toast.makeText(this, "无法打开链接：${it.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun addSection(title: String) {
-        container.addView(TextView(this).apply {
-            text = title
-            textSize = 13f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFF48484A.toInt())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also {
-                it.topMargin = dp(14)
-                it.bottomMargin = dp(6)
-                it.marginStart = dp(4)
-            }
-        })
+        content.addView(sectionTitle(title))
     }
 
-    private fun addBody(text: String) {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        card.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        card.addView(TextView(this).apply {
-            this.text = text
-            textSize = 12.5f
-            setTextColor(0xFF48484A.toInt())
-            setLineSpacing(0f, 1.45f)
-        })
-        container.addView(card)
+    private fun addCardBody(text: String) {
+        val card = card()
+        card.addView(cardText(text))
+        content.addView(card)
     }
-
-    /** 与主页一致：把系统栏 / 刘海高度回填到滚动容器 */
-    private fun applySystemBarInsets(scroll: ScrollView) {
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            v.setPadding(0, bars.top, 0, bars.bottom)
-            insets
-        }
-        ViewCompat.requestApplyInsets(scroll)
-    }
-
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 }

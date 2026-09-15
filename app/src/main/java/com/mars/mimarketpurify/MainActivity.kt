@@ -4,16 +4,20 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.LayoutInflater
+import android.view.View
 import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.mars.mimarketpurify.App.ServiceStateListener
@@ -22,12 +26,13 @@ import com.mars.mimarketpurify.Settings.TAB_ITEMS
 import io.github.libxposed.service.XposedService
 
 /**
- * 程序主页：展示模块状态，并提供分类整理后的各功能开关。
+ * 程序主页：**顶栏固定 + 内容区滚动**。
  *
  * 布局要点：
- *  - 采用edge-to-edge + [WindowInsetsCompat] 手动处理系统栏内边距，
- *    避免在 targetSdk 36 下内容（总开关行）被状态栏/标题区域遮挡；
- *  - 不使用系统 ActionBar，标题由本界面自行绘制（见 styles.xml AppTheme）。
+ *  - 根布局为纵向 [LinearLayout]：固定顶栏（标题 / 副标题 / 框架状态）+ 下方 ScrollView，
+ *    因此标题与状态行始终可见，滚动只发生在内容区；
+ *  - edge-to-edge 的内边距手动分配到顶栏顶部与内容区底部（见 [applySystemBarInsets]）；
+ *  - 所有配色、字号、间距、触摸目标尺寸统一取自 [Ui]。
  *
  * 「隐藏桌面图标」不再禁用本 Activity，而是禁用桌面入口 alias，
  * 保证 LSPosed 等框架始终可以打开主页（详见 manifest 注释）。
@@ -35,14 +40,10 @@ import io.github.libxposed.service.XposedService
 class MainActivity : Activity(), ServiceStateListener {
 
     private var service: XposedService? = null
-    private lateinit var container: LinearLayout
-    private lateinit var statusView: TextView
-    /** 主页标题：颜色随模块激活状态变化（已激活绿 / 未激活橙红） */
+    /** 滚动内容区（顶栏之外） */
+    private lateinit var content: LinearLayout
     private lateinit var titleView: TextView
-
-    /** 标题色：未激活（含连接中）用品牌橙红，已激活用成功绿 */
-    private val colorTitleInactive = 0xFFFF6B35.toInt()
-    private val colorTitleActive = 0xFF34C759.toInt()
+    private lateinit var statusView: TextView
 
     /** 桌面入口 alias 的组件名：隐藏图标时只禁用它 */
     private val launcherAlias: ComponentName by lazy {
@@ -100,42 +101,58 @@ class MainActivity : Activity(), ServiceStateListener {
         // 入口自愈：曾被旧版本锁出的设备，覆盖安装后自动恢复
         EntryGuardReceiver.ensureEntryEnabled(this)
 
-        val scroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(0xFFF2F2F7.toInt())
-            // 让内容可以延伸到系统栏下方，由容器自身的内边距控制视觉留白
-            clipToPadding = false
-        }
-        container = LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(Ui.BG)
         }
-        scroll.addView(container)
-        setContentView(scroll)
-        applySystemBarInsets(scroll)
+        // 固定顶栏：不随内容滚动
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Ui.BG)
+        }
+        val scroll = ScrollView(this)
+        content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scroll.addView(content)
 
-        buildHeader()
+        root.addView(
+            header,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        // height=0 + weight=1：内容区吃掉剩余高度，滚动只发生在这里
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+        setContentView(root)
+        applySystemBarInsets(root, header)
+
+        buildHeader(header)
         buildMasterSwitch()
         buildCategories()
         buildModuleSection()
     }
 
     /**
-     * 处理 edge-to-edge：把系统栏 / 刘海的高度加到滚动容器上，
-     * 修复 targetSdk 36 下顶部内容被状态栏遮挡的问题。
+     * edge-to-edge：把状态栏高度加到**固定顶栏**，把导航栏高度加到**内容区底部**，
+     * 这样既不会被系统栏遮挡，也不会因为整页统一 pad 而让顶栏留白失衡。
      */
-    private fun applySystemBarInsets(scroll: ScrollView) {
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+    private fun applySystemBarInsets(root: View, header: LinearLayout) {
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            v.setPadding(0, bars.top, 0, bars.bottom)
+            header.setPadding(dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.top, dp(Ui.PAGE_H), dp(12))
+            content.setPadding(
+                dp(Ui.PAGE_H), dp(6), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
+            )
             insets
         }
-        ViewCompat.requestApplyInsets(scroll)
+        ViewCompat.requestApplyInsets(root)
     }
 
     override fun onStart() {
@@ -153,7 +170,7 @@ class MainActivity : Activity(), ServiceStateListener {
         runOnUiThread {
             // 标题即状态灯：已激活转绿，未激活 / 连接中保持品牌橙红
             titleView.setTextColor(
-                if (service == null) colorTitleInactive else colorTitleActive
+                if (service == null) Ui.STATE_INACTIVE else Ui.STATE_ACTIVE
             )
             if (service == null) {
                 statusView.text = "模块未激活：请在 LSPosed / 框架中启用本模块并勾选作用域"
@@ -168,17 +185,28 @@ class MainActivity : Activity(), ServiceStateListener {
                     else append("\n注意：当前框架不支持远程偏好，开关可能不生效")
                 }
             }
+            // 未激活时写入远程偏好注定失败，用弱化透明度表达“这些开关尚未生效”
+            applyUnactivatedDim(service == null)
             refreshAll()
+        }
+    }
+
+    /** 未激活时把所有依赖远程偏好的开关视觉弱化；恢复激活后还原 */
+    private fun applyUnactivatedDim(unactivated: Boolean) {
+        val alpha = if (unactivated) Ui.DIM_ALPHA else 1f
+        listOfNotNull(masterSwitch, tabFilterSwitch).forEach { it.alpha = alpha }
+        allFeatures.forEach { f ->
+            content.findViewWithTag<CompoundButton>(f.key)?.alpha = alpha
         }
     }
 
     /** 刷新所有开关的显示状态（框架连接后调用） */
     private fun refreshAll() {
         allFeatures.forEach { f ->
-            (container.findViewWithTag<CompoundButton>(f.key))?.isChecked =
+            (content.findViewWithTag<CompoundButton>(f.key))?.isChecked =
                 readLocal(f.key, f.default)
         }
-        (container.findViewWithTag<CompoundButton>(Settings.KEY_MASTER))?.isChecked =
+        (content.findViewWithTag<CompoundButton>(Settings.KEY_MASTER))?.isChecked =
             readLocal(Settings.KEY_MASTER, true)
 
         val kept = readLocalTabs()
@@ -190,83 +218,78 @@ class MainActivity : Activity(), ServiceStateListener {
         hideIconSwitch?.isChecked = isLauncherIconHidden()
     }
 
-    private fun buildHeader() {
-        // 标题与“关于”入口同一行：标题占满剩余宽度并把按钮挤到右侧
-        val headerRow = LinearLayout(this).apply {
+    /** 固定顶栏：标题（含“关于”入口）+ 副标题 + 框架状态 */
+    private fun buildHeader(header: LinearLayout) {
+        val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
         }
-
         titleView = TextView(this).apply {
             text = "Mi Market Purify"
-            textSize = 24f
+            textSize = Ui.HOME_TITLE
             setTypeface(null, Typeface.BOLD)
-            setTextColor(colorTitleInactive)
-            // weight=1 且 width=0：让标题吃掉剩余空间，避免“关于”被推到屏幕外
+            setTextColor(Ui.STATE_INACTIVE)
+            // weight=1 且 width=0：标题吃掉剩余空间，避免“关于”被推出屏幕
             layoutParams =
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        headerRow.addView(titleView)
-
-        headerRow.addView(TextView(this).apply {
+        row.addView(titleView)
+        row.addView(TextView(this).apply {
             text = "关于"
-            textSize = 13f
-            setTextColor(0xFF007AFF.toInt())
-            setPadding(dp(12), dp(6), dp(4), dp(6))
-            isClickable = true
-            isFocusable = true
-            val ta = this@MainActivity.obtainStyledAttributes(
-                intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
-            )
-            setBackgroundResource(ta.getResourceId(0, 0))
-            ta.recycle()
+            textSize = Ui.CAPTION
+            setTextColor(Ui.ACCENT)
+            setPadding(dp(12), dp(4), dp(4), dp(4))
+            tappable(this@MainActivity)
             setOnClickListener {
                 startActivity(Intent(this@MainActivity, AboutActivity::class.java))
             }
         })
-        container.addView(headerRow)
+        header.addView(row)
 
-        container.addView(TextView(this).apply {
+        header.addView(TextView(this).apply {
             text = "小米应用商店净化与增强"
-            textSize = 13f
-            setTextColor(0xFF8E8E93.toInt())
-            setPadding(0, 0, 0, dp(8))
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
+            setPadding(0, 0, 0, dp(6))
         })
         statusView = TextView(this).apply {
             text = "正在连接框架…"
-            textSize = 12f
-            setTextColor(0xFF8E8E93.toInt())
-            setPadding(0, 0, 0, dp(14))
-            setLineSpacing(0f, 1.3f)
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
+            setLineSpacing(0f, 1.4f)
         }
-        container.addView(statusView)
+        header.addView(statusView)
+
+        // 顶栏与滚动区之间的分隔线：明确“这里是固定区域”
+        header.addView(View(this).apply {
+            setBackgroundColor(Ui.DIVIDER)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1).coerceAtLeast(1)
+            )
+        })
     }
 
     private fun buildMasterSwitch() {
-        val row = LayoutInflater.from(this)
-            .inflate(R.layout.item_switch, container, false)
-        row.findViewById<TextView>(R.id.title).text = "总开关"
-        row.findViewById<TextView>(R.id.summary).text = "关闭后所有功能均不生效"
-        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
-        sw.tag = Settings.KEY_MASTER
-        sw.isChecked = readLocal(Settings.KEY_MASTER, true)
-        sw.setOnCheckedChangeListener { _, isChecked ->
+        masterSwitch = addSwitchRow(
+            title = "总开关",
+            summary = "关闭后所有功能均不生效",
+            checked = readLocal(Settings.KEY_MASTER, true),
+            tag = Settings.KEY_MASTER
+        ) { isChecked ->
             writeRemote(Settings.KEY_MASTER, isChecked)
             updateTabChecksEnabled()
         }
-        masterSwitch = sw
-        container.addView(row)
     }
 
     private fun buildCategories() {
         categories.forEach { category ->
             addSectionHeader(category.title, category.subtitle)
             category.features.forEach { f ->
-                buildFeatureRow(f)
+                addSwitchRow(f.title, f.summary, readLocal(f.key, f.default), f.key) { checked ->
+                    writeRemote(f.key, checked)
+                    if (f.key == Settings.KEY_TAB_FILTER) updateTabChecksEnabled()
+                }
                 if (f.key == Settings.KEY_TAB_FILTER) buildTabSelectSection()
             }
         }
@@ -275,85 +298,115 @@ class MainActivity : Activity(), ServiceStateListener {
     /** 模块自身相关的设置（不参与远程偏好） */
     private fun buildModuleSection() {
         addSectionHeader("模块自身", "仅影响本模块的显示方式")
-        buildHideIconRow()
+        hideIconSwitch = addSwitchRow(
+            title = "隐藏桌面图标",
+            summary = "仅移除桌面抽屉中的图标，仍可从 LSPosed 模块列表进入主页",
+            checked = isLauncherIconHidden(),
+            tag = "hide_launcher_icon"
+        ) { hide -> applyHideIcon(hide) }
     }
 
+    /** 区块标题 + 统一的灰小字说明 */
     private fun addSectionHeader(title: String, subtitle: String) {
-        val box = LinearLayout(this).apply {
+        content.addView(sectionTitle(title))
+        content.addView(TextView(this).apply {
+            text = subtitle
+            textSize = Ui.MICRO
+            setTextColor(Ui.TEXT_TERTIARY)
+            setPadding(dp(4), 0, 0, dp(4))
+        })
+    }
+
+    /**
+     * 统一的开关行：[card()] 白底圆角容器内放置标题 + 摘要 + [Switch]。
+     * 开关着色统一为“开启 = [Ui.STATE_ACTIVE]”，与标题状态灯呼应。
+     */
+    private fun addSwitchRow(
+        title: String,
+        summary: String,
+        checked: Boolean,
+        tag: String,
+        onChanged: (Boolean) -> Unit
+    ): CompoundButton {
+        val card = card()
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val textWrap = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { lp ->
-                lp.topMargin = dp(14)
-                lp.bottomMargin = dp(6)
-                lp.marginStart = dp(4)
-            }
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ).also { it.marginEnd = dp(12) }
         }
-        box.addView(TextView(this).apply {
-            text = title
-            textSize = 13f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFF48484A.toInt())
+        textWrap.addView(cardTitle(title))
+        textWrap.addView(TextView(this).apply {
+            text = summary
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
+            setPadding(0, dp(3), 0, 0)
         })
-        box.addView(TextView(this).apply {
-            text = subtitle
-            textSize = 11f
-            setTextColor(0xFFA0A0A5.toInt())
-        })
-        container.addView(box)
+
+        val sw = Switch(this).apply {
+            this.tag = tag
+            isChecked = checked
+            setOnCheckedChangeListener { _, isChecked -> onChanged(isChecked) }
+            tintSwitch(this)
+        }
+
+        row.addView(textWrap)
+        row.addView(sw)
+        card.addView(row)
+        content.addView(card)
+
+        if (tag == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
+        return sw
     }
 
-    private fun buildFeatureRow(f: Feature) {
-        val row = LayoutInflater.from(this)
-            .inflate(R.layout.item_switch, container, false)
-        row.findViewById<TextView>(R.id.title).text = f.title
-        row.findViewById<TextView>(R.id.summary).text = f.summary
-        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
-        sw.tag = f.key
-        sw.isChecked = readLocal(f.key, f.default)
-        sw.setOnCheckedChangeListener { _, isChecked ->
-            writeRemote(f.key, isChecked)
-            if (f.key == Settings.KEY_TAB_FILTER) updateTabChecksEnabled()
-        }
-        if (f.key == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
-        container.addView(row)
+    /** 开关配色：轨道选中为半透明状态绿、未选中为浅灰；滑块恒为白色 */
+    private fun tintSwitch(sw: Switch) {
+        val states = arrayOf(
+            intArrayOf(android.R.attr.state_checked),
+            intArrayOf(-android.R.attr.state_checked)
+        )
+        val thumbColors = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt())
+        val trackColors = intArrayOf(0x4D34C759.toInt(), Ui.SWITCH_TRACK_OFF)
+        sw.thumbDrawable?.let { sw.thumbDrawable = it.tinted(states, thumbColors) }
+        sw.trackDrawable?.let { sw.trackDrawable = it.tinted(states, trackColors) }
+    }
+
+    private fun Drawable.tinted(states: Array<IntArray>, colors: IntArray): Drawable {
+        val wrapped = DrawableCompat.wrap(this).mutate()
+        DrawableCompat.setTintList(wrapped, ColorStateList(states, colors))
+        return wrapped
     }
 
     /** 在筛选开关下方构建“保留哪些标签”的多选列表（整体包进一张卡片） */
     private fun buildTabSelectSection() {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        val cardLp = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        cardLp.bottomMargin = dp(10)
-        card.layoutParams = cardLp
-
-        val hint = TextView(this).apply {
+        val card = card()
+        card.addView(TextView(this).apply {
             text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
-            textSize = 12f
-            setTextColor(0xFF8E8E93.toInt())
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
             setPadding(0, 0, 0, dp(6))
-        }
-        card.addView(hint)
+        })
 
         TAB_ITEMS.forEach { (tag, label) ->
             val cb = CheckBox(this).apply {
                 text = label
+                textSize = Ui.BODY
+                setTextColor(Ui.TEXT_PRIMARY)
                 this.tag = tag
                 isChecked = readLocalTabs().contains(tag)
-                setPadding(dp(8), dp(4), 0, dp(4))
+                setPadding(dp(12), dp(4), dp(4), dp(4))
+                compoundDrawablePadding = dp(10)
+                minHeight = dp(Ui.TOUCH_MIN)
                 setOnCheckedChangeListener { _, _ -> writeTabSelection() }
             }
             tabChecks.add(cb)
             card.addView(cb)
         }
-        container.addView(card)
+        content.addView(card)
     }
 
     /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
@@ -374,7 +427,7 @@ class MainActivity : Activity(), ServiceStateListener {
         return service?.getRemotePreferences(PREFS_GROUP)?.getBoolean(key, def) ?: def
     }
 
-    /** 写远程偏好；返回是否写入成功 */
+    /** 写远程偏好；写入失败时给出明确反馈 */
     private fun writeRemote(key: String, value: Boolean) {
         val prefs = service?.getRemotePreferences(PREFS_GROUP)
         if (prefs == null) {
@@ -410,22 +463,6 @@ class MainActivity : Activity(), ServiceStateListener {
         }
     }
 
-    /** 构建“隐藏桌面图标”独立开关（不经过远程偏好，直接操作系统 alias 组件状态） */
-    private fun buildHideIconRow() {
-        val row = LayoutInflater.from(this)
-            .inflate(R.layout.item_switch, container, false)
-        row.findViewById<TextView>(R.id.title).text = "隐藏桌面图标"
-        row.findViewById<TextView>(R.id.summary).text =
-            "仅移除桌面抽屉中的图标，仍可从 LSPosed 模块列表进入主页"
-        val sw = row.findViewById<CompoundButton>(R.id.switch_view)
-        sw.isChecked = isLauncherIconHidden()
-        sw.setOnCheckedChangeListener { _, isChecked ->
-            applyHideIcon(isChecked)
-        }
-        hideIconSwitch = sw
-        container.addView(row)
-    }
-
     /** 当前桌面图标是否已被隐藏（即桌面入口 alias 被禁用） */
     private fun isLauncherIconHidden(): Boolean {
         return runCatching {
@@ -456,8 +493,6 @@ class MainActivity : Activity(), ServiceStateListener {
             Toast.makeText(this, "操作失败：${it.message}", Toast.LENGTH_SHORT).show()
         }
     }
-
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private data class Feature(
         val key: String,
