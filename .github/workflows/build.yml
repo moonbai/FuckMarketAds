@@ -117,23 +117,15 @@ jobs:
         if: steps.build.outcome == 'failure'
         run: exit 1
 
-      # Only on failure: publish ci-report.log to a throwaway branch so the log can be
-      # read without Actions-Log API access. master stays clean on green builds.
-      - name: Publish diagnostics to ci-diag branch
+      # Only on failure: commit ci-report.log so it can be read without Actions-Log
+      # API access. The message carries [skip ci] to avoid re-triggering itself.
+      - name: Publish diagnostics (failure only)
         if: always() && steps.build.outcome == 'failure'
         run: |
-          set -e
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           mkdir -p diag
           cp ci-report.log "diag/${{ github.run_id }}.log"
-          git fetch origin ci-diag || true
-          if git ls-remote --exit-code --heads origin ci-diag >/dev/null 2>&1; then
-            git checkout -B ci-diag origin/ci-diag
-          else
-            git checkout --orphan ci-diag
-            git rm -rf --cached . >/dev/null 2>&1 || true
-          fi
-          git add "diag/${{ github.run_id }}.log"
-          git commit -m "diag: run ${{ github.run_id }} @ ${{ github.sha }}" || exit 0
-          git push origin ci-diag
+          git add diag
+          git commit -m "diag: run ${{ github.run_id }} [skip ci]"
+          git push origin HEAD:master
