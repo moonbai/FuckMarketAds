@@ -82,6 +82,14 @@ class MainActivity : Activity(), ServiceStateListener {
                     Settings.KEY_TAB_FILTER, "筛选底部标签栏 / 推广位",
                     "勾选要保留的标签；同时清理首页顶栏云控推广位", true
                 ),
+                Feature(
+                    Settings.KEY_MINE_CLEANUP, "净化「我的」页",
+                    "隐藏「我的」页的广告位、官方入口 tab 与手机清理入口", true
+                ),
+                Feature(
+                    Settings.KEY_DETAIL_FEATURED, "隐藏详情页「精选」",
+                    "隐藏应用详情页的「精选」入口（按文案匹配，仅在详情页生效）", true
+                ),
             )
         ),
         Category(

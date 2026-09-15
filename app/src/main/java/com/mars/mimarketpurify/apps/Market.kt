@@ -36,6 +36,7 @@ object Market : AppRegister() {
             HideFruitEntry,
             TabFilter,
             RankAds,
+            UiCleanup,
             EnableSuperIsland,
             MiscApply,
             // 以下为稳定性增强（参考 lisrain/NewFuckMarketAds_Fork）：

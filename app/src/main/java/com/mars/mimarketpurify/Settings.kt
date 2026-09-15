@@ -82,6 +82,12 @@ object Settings {
     /** 移除「榜单」界面广告 / 推广卡片 */
     const val KEY_RANK = "rank_ads"
 
+    /** 净化「我的」页：广告容器 / 官方入口 tab / 手机清理入口 */
+    const val KEY_MINE_CLEANUP = "mine_cleanup"
+
+    /** 隐藏应用详情页的「精选」入口 */
+    const val KEY_DETAIL_FEATURED = "hide_detail_featured"
+
     /**
      * 榜单调试：开启后，进入榜单时把**未被识别**的榜单项类型以 Toast 弹出来。
      * 目的是让用户在手机上就能拿到漏网广告的组件类型，而不需要电脑抓 logcat。
