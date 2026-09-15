@@ -42,7 +42,9 @@ object UiCleanup : BaseHook() {
     private val mineIds = listOf(
         "mine_ad_container",
         "mine_middle_menu_container",
+        // 手机清理在不同版本里 id 不同，两种都列上；解析不到的会自动跳过
         "phone_clear_forbid_layout",
+        "phone_clear_layout",
         "mine_uninstall_app_layout"
     )
 

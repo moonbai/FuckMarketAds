@@ -91,14 +91,28 @@ object RankAds : BaseHook() {
     private val enLabels = setOf("ad", "ads", "sponsor", "sponsored", "promoted")
 
     /**
-     * 排名徽章的资源名。榜单里第 1/2/3 名与 4 名以后都靠它显示名次，
-     * 而插入的广告项也会复用同一个 id，但画出来的是一个很窄的小图标
-     * （用户实测约 14px ≈ 5dp），明显窄于真正的名次数字。
+     * 名次图标的资源名。实测（1080 宽、density 2.8125）正常项这里是 **14x39**——
+     * 所以「宽度 14px 就是广告」这个假设是**反的**：14px 恰恰是正常名次图标的尺寸。
+     * 用它做绝对阈值会把所有正常项都判成广告，只能靠安全阀兜住，等于没用。
+     * 现在它只用于**相对比较**（明显窄于同列其他项才算可疑）。
      */
     private const val RANK_BADGE = "iv_app_ranking"
 
-    /** 判定为广告的徽章宽度上限（dp）：实测广告约 5dp，这里留约 3dp 余量 */
-    private const val RANK_BADGE_AD_MAX_DP = 8f
+    /**
+     * 名次**数字**的资源名，实测正常项为 29x60。
+     * 真正的榜单一律有名次，广告项没有——所以“拿不到可见的名次数字”才是可靠判据。
+     */
+    private const val RANK_NUMBER = "tv_app_ranking"
+
+    /**
+     * 已知的正常榜单组件类型（归一化后比较：小写、去掉下划线）。
+     * 命中即视为正常项，不再打 `[rank]` 诊断日志——否则满屏都是正常项，
+     * 真正可疑的那几行反而被淹没了。
+     */
+    private val knownNormalTypes = setOf("nativeranklistapps", "ranklistapps")
+
+    /** 徽章宽度低于同列中位数这个比例时视为可疑（绝对阈值在这台设备上不可用） */
+    private const val BADGE_RATIO = 0.5f
 
     /** 已上报过的未识别形态，避免日志刷屏 */
     private val reported = Collections.synchronizedSet(mutableSetOf<String>())
@@ -238,6 +252,9 @@ object RankAds : BaseHook() {
         if (tokens(bean::class.java.simpleName).any { it in adTokens }) return true
         return false
     }
+
+    /** 类型归一化：小写并去掉下划线，`native_rank_list_apps` 与 `nativeRankListApps` 视为同一个 */
+    private fun normalizeType(raw: String): String = raw.lowercase().replace("_", "")
 
     private fun readType(bean: Any, getter: String): String? =
         runCatching { bean.invokeAs<Any?>(getter)?.toString() }.getOrNull()
@@ -418,62 +435,61 @@ object RankAds : BaseHook() {
 
     private fun scanBadgeWidths(list: ViewGroup) {
         val count = list.childCount.coerceAtMost(32)
-        val samples = ArrayList<Pair<View, Int>>(count)
-        val missing = ArrayList<View>()
+        val normal = ArrayList<Pair<View, Int>>()   // 有名次数字的正常项 -> 名次图标宽度
+        val suspects = ArrayList<View>()            // 拿不到可见名次数字的可疑项
         for (i in 0 until count) {
             val item = list.getChildAt(i) ?: continue
             if (item.visibility != View.VISIBLE) continue
-            val badge = findByIdName(item, RANK_BADGE)
-            if (badge == null) {
-                missing += item
+            // 主判据：名次数字是否真实可见。广告项不参与排名，自然没有名次。
+            // 注意不能只判断“存在”——未绑定数据的 View 可能尺寸还是 0
+            val number = findByIdName(item, RANK_NUMBER)
+            val numbered = number != null &&
+                number.visibility == View.VISIBLE &&
+                (number.width > 0 || number.measuredWidth > 0)
+            if (!numbered) {
+                suspects += item
                 continue
             }
-            val w = if (badge.width > 0) badge.width else badge.measuredWidth
-            if (w > 0) samples += item to w
+            val badge = findByIdName(item, RANK_BADGE)
+            val w = if (badge == null) 0
+            else if (badge.width > 0) badge.width else badge.measuredWidth
+            if (w > 0) normal += item to w
         }
-        val density = list.resources.displayMetrics.density
-        val threshold = (RANK_BADGE_AD_MAX_DP * density).toInt().coerceAtLeast(1)
-        val hits = samples.filter { it.second <= threshold }
 
-        // 无论命中与否都报一次：用户就是靠这行判断「徽章存不存在 / 阈值该定多少」
-        val widths = if (samples.isEmpty()) {
+        val total = normal.size + suspects.size
+        val widths = if (normal.isEmpty()) {
             "<未测到>"
         } else {
-            samples.take(12).joinToString(",") { it.second.toString() }
+            normal.take(12).joinToString(",") { it.second.toString() }
         }
-        val shape = "[rank] 徽章宽度 $widths px / 阈值 ${threshold}px / 无徽章 ${missing.size} 项"
+        val shape = "[rank] 名次宽度 $widths px / 无名次 ${suspects.size} 项 / 共 $total 项"
+        reportWidths(list, shape, 0)
 
-        // 名次徽章缺失：广告项压根不显示名次。这是很强的一条判据，但前三名的
-        // 大卡片也可能没有徽章，所以只在「绝大多数项都有、只有极少数没有」时才下手
-        if (samples.size >= 4 && missing.isNotEmpty() && missing.size * 4 <= samples.size) {
-            missing.forEach { hide(it) }
-            HookEnv.base.log(
-                Log.WARN, TAG, "$name: 无名次徽章隐藏 ${missing.size} 条（$shape）", null
-            )
-        }
+        // 安全阀：可疑项超过 1/4 就不动手。榜单前三名常用另一种大卡片布局
+        // （同样没有 tv_app_ranking），样本少时它们占比会很高，宁可放过。
+        if (total < 4 || suspects.isEmpty() || suspects.size * 4 > total) return
 
-        if (hits.isEmpty()) {
-            reportWidths(list, shape, 0)
-            return
-        }
-
-        // 安全阀：命中率 >= 3/4 且样本够多时，判定为阈值偏高，整轮放弃
-        if (samples.size >= 4 && hits.size * 4 >= samples.size * 3) {
-            HookEnv.base.log(
-                Log.WARN, TAG, "$name: 宽度判据命中 ${hits.size}/${samples.size}，疑似阈值偏高，本轮放弃", null
-            )
-            reportWidths(list, "$shape / 命中率过高，已放弃", 0)
-            return
-        }
-
-        hits.forEach { hide(it.first) }
+        suspects.forEach { hide(it) }
         HookEnv.base.log(
             Log.WARN,
             TAG,
-            "$name: 按 $RANK_BADGE 宽度隐藏 ${hits.size} 条（$shape）",
+            "$name: 无可見名次，隐藏 ${suspects.size} 条（$shape）",
             null
         )
-        reportWidths(list, shape, hits.size)
+
+        // 相对宽度：正常项的名次图标尺寸一致（实测 14x39），
+        // 明显窄于中位数的才算可疑。绝对阈值在这台设备上是错的，只能用相对值。
+        if (normal.size >= 4) {
+            val mid = normal.map { it.second }.sorted()[normal.size / 2]
+            val threshold = (mid * BADGE_RATIO).toInt().coerceAtLeast(1)
+            val narrow = normal.filter { it.second <= threshold }
+            if (narrow.isNotEmpty() && narrow.size * 4 <= normal.size) {
+                narrow.forEach { hide(it.first) }
+                HookEnv.base.log(
+                    Log.WARN, TAG, "$name: 名次图标偏窄，隐藏 ${narrow.size} 条（中位数 $mid px）", null
+                )
+            }
+        }
     }
 
     /** 宽度样本只报一次，避免滚动时刷屏；开了调试开关额外弹 Toast（且 3s 内只弹一次） */
@@ -549,11 +565,18 @@ object RankAds : BaseHook() {
         return false
     }
 
-    /** 上报尚未识别的榜单项形态，便于精确补充关键字 */
+    /**
+     * 上报尚未识别的榜单项形态，便于精确定位漏网的广告。
+     *
+     * 已知的正常类型（如 `nativeRankListApps`）会被静默跳过：修复 Fragment 误判后
+     * bean 层终于能读到类型，一屏十几个正常项会打出十几行一样的日志，
+     * 真正可疑的那一行反而被淹没了。
+     */
     private fun logUnknownShape(view: View, bean: Any?) {
         val type = if (bean == null) null else {
             typeGetters.firstNotNullOfOrNull { getter -> readType(bean, getter) }
         }
+        if (type != null && normalizeType(type) in knownNormalTypes) return
         val shape = buildString {
             append("[rank] ")
             append(view::class.java.simpleName)
