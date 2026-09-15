@@ -1,12 +1,11 @@
-run     : 34920412138 attempt 1
-sha     : b68c4177d9d1ecee450bf2ff95912987554f043f
-date    : 2026-09-15T02:15:13Z
-outcome : failure
+run     : 34920819469 attempt 1
+sha     : bb69b92b8e4f5f23ca12db3265db060656d491fb
+date    : 2026-09-15T02:21:40Z
+outcome : success
 
 === produced apk ===
-(no app/build/outputs/apk)
+app/build/outputs/apk/debug/app-debug.apk	7008550 bytes
 
 === kotlin error lines (e:) ===
-37:e: file:///home/runner/work/MiMarketPurify/MiMarketPurify/app/src/main/java/com/mars/mimarketpurify/MainActivity.kt:215:28 Unresolved reference 'dpf'.
 
 === 'What went wrong' block ===
