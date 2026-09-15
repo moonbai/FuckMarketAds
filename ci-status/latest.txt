@@ -1,6 +1,0 @@
-run     : 34929332186 attempt 1
-sha     : b4b19fc6f33f632c68934aceee812915cf95051a
-outcome : success
-=== produced apk ===
-app/build/outputs/apk/debug/app-debug.apk	7024164 bytes
-=== kotlin error lines (e:) ===
