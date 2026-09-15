@@ -90,18 +90,32 @@ class MainActivity : SettingsBaseActivity() {
     private fun buildHeader(header: LinearLayout) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL // 整行垂直居中，左侧文字块与右侧按钮整体居中
         }
+
+        // 左侧：标题+副标题 封装成垂直LinearLayout，实现两行文字作为整体和右侧按钮居中对齐
+        val leftTextBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
         titleView = TextView(this).apply {
             text = "Mi Market Purify"
             textSize = Ui.HOME_TITLE
             setTypeface(null, Typeface.BOLD)
             setTextColor(Ui.STATE_INACTIVE)
-            // weight=1 且 width=0：标题吃掉剩余空间，避免“关于”被推出屏幕
-            layoutParams =
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        row.addView(titleView)
+        val subTitleTv = TextView(this).apply {
+            text = "小米应用商店净化与增强"
+            textSize = Ui.CAPTION
+            setTextColor(Ui.TEXT_SECONDARY)
+            setPadding(0, dp(2), 0, dp(10))
+        }
+
+        leftTextBlock.addView(titleView)
+        leftTextBlock.addView(subTitleTv)
+
+        row.addView(leftTextBlock)
         row.addView(TextView(this).apply {
             text = "关于"
             textSize = Ui.CAPTION
@@ -120,13 +134,6 @@ class MainActivity : SettingsBaseActivity() {
             }
         })
         header.addView(row)
-
-        header.addView(TextView(this).apply {
-            text = "小米应用商店净化与增强"
-            textSize = Ui.CAPTION
-            setTextColor(Ui.TEXT_SECONDARY)
-            setPadding(0, dp(2), 0, dp(10))
-        })
         header.addView(headerDivider())
     }
 
@@ -196,6 +203,10 @@ class MainActivity : SettingsBaseActivity() {
 
     private fun buildMasterSwitch() {
         val group = groupCard()
+        // 新增：状态卡与总开关卡片之间增加上边距
+        group.layoutParams = (group.layoutParams as LinearLayout.LayoutParams).apply {
+            topMargin = dp(12)
+        }
         addSwitchRow(
             group = group,
             title = "总开关",
