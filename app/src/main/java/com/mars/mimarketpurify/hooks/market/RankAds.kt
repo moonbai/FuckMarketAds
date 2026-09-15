@@ -10,7 +10,9 @@ import com.mars.mimarketpurify.HookEnv
 import com.mars.mimarketpurify.Settings
 import com.mars.mimarketpurify.TAG
 import com.mars.mimarketpurify.init.BaseHook
+import com.mars.mimarketpurify.util.getFieldValue
 import com.mars.mimarketpurify.util.invokeAs
+import dalvik.system.DexFile
 import io.github.kyuubiran.ezxhelper.core.finder.MethodFinder.`-Static`.methodFinder
 import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 import java.util.Collections
@@ -89,7 +91,15 @@ object RankAds : BaseHook() {
 
     override fun init() {
         var bound = 0
-        candidates.forEach { className ->
+
+        // 光靠猜类名是不够的：实测 10 个候选里只命中 1 个。
+        // 这里直接扫 dex，把商店里所有名字带 rank 的类都翻出来一起挂。
+        val discovered = discoverRankClasses()
+        HookEnv.base.log(
+            Log.WARN, TAG, "$name: dex 扫描额外发现 ${discovered.size} 个 rank 类", null
+        )
+
+        (candidates + discovered).distinct().forEach { className ->
             runCatching {
                 ClassUtil.loadClass(className)
                     .methodFinder()
@@ -125,8 +135,42 @@ object RankAds : BaseHook() {
         // 关键诊断：如果 bound 为 0，说明一个候选类都没命中——榜单根本没走这里的渲染，
         // 这时无论补多少关键字都没用，必须换容器（见 logUnknownShape 的提示）。
         HookEnv.base.log(
-            Log.WARN, TAG, "$name: 已挂载 $bound 个绑定点（候选 ${candidates.size} 个类）", null
+            Log.WARN,
+            TAG,
+            "$name: 已挂载 $bound 个绑定点（候选 ${candidates.size} 个 + 扫描 ${discovered.size} 个）",
+            null
         )
+    }
+
+    /**
+     * 枚举 dex 里所有类名，挑出 `com.xiaomi.market` 下名字含 "rank" 的类。
+     *
+     * 这是为了不再赌类名：商店每个版本把榜单拆成哪些 Fragment / Adapter 都不一样，
+     * 与其猜，不如把 dex 里的类名列一遍。反射 `BaseDexClassLoader.pathList` 属于隐藏 API，
+     * 在部分 ROM / 框架上会失败，因此整体包在 [runCatching] 里，失败就退回纯候选类方案。
+     */
+    private fun discoverRankClasses(): List<String> {
+        val found = mutableListOf<String>()
+        runCatching {
+            val pathList = getClassLoader().getFieldValue("pathList")
+            val elements = pathList?.getFieldValue("dexElements") as? Array<*> ?: return found
+            elements.forEach { element ->
+                val dex = element?.getFieldValue("dexFile") as? DexFile
+                    ?: (element?.getFieldValue("path") as? String)
+                        ?.let { p -> runCatching { DexFile(p) }.getOrNull() }
+                    ?: return@forEach
+                val entries = dex.entries()
+                while (entries.hasMoreElements()) {
+                    val name = entries.nextElement()
+                    if (name.startsWith("com.xiaomi.market") && name.contains("rank", true)) {
+                        found += name
+                    }
+                }
+            }
+        }.onFailure {
+            HookEnv.base.log(Log.WARN, TAG, "$name: dex 扫描不可用：${it.message}", null)
+        }
+        return found
     }
 
     /** 从参数里挑出疑似 bean 的对象：排除 View 与基础类型 */

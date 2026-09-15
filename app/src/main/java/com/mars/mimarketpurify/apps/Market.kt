@@ -13,6 +13,7 @@ import com.mars.mimarketpurify.hooks.market.MiscApply
 import com.mars.mimarketpurify.hooks.market.SearchAds
 import com.mars.mimarketpurify.hooks.market.SplashAds
 import com.mars.mimarketpurify.hooks.market.TabFilter
+import com.mars.mimarketpurify.hooks.market.UiCleanup
 import com.mars.mimarketpurify.hooks.market.UpdateDownloadAds
 import com.mars.mimarketpurify.init.AppPackage
 import com.mars.mimarketpurify.init.AppRegister
