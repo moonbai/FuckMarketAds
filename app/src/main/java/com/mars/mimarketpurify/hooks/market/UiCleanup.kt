@@ -477,6 +477,12 @@ object UiCleanup : BaseHook() {
     private fun isHorizontal(v: View): Boolean =
         (v as? LinearLayout)?.orientation == LinearLayout.HORIZONTAL
 
+    /** 取资源名；没有 id / 解析失败时返回 null（商店换包名也不会崩） */
+    private fun nameOf(v: View): String? {
+        if (v.id == View.NO_ID || v.id <= 0) return null
+        return runCatching { v.resources.getResourceEntryName(v.id) }.getOrNull()
+    }
+
     /** 把按钮圆角对齐卡片内边距；只处理粒子白底按钮，不碰图片背景 */
     private fun roundButton(btn: View, pad: Int) {
         if (pad <= 0) return
