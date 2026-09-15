@@ -17,11 +17,10 @@ import androidx.core.view.WindowInsetsCompat
 
 /**
  * 「关于」页
- * 卡片1：应用信息卡片（版本、包名、简介，整卡点击跳转源码仓库）
- * 卡片2：功能清单
- * 卡片3：反馈遗漏广告说明
- * 页脚：上游致谢 + 免责声明
- * 顶栏：48dp圆形返回图标按钮，和主页视觉统一
+ * 1. 应用信息卡：顶部左侧引用应用图标
+ * 2. 功能卡：功能列表改为卡片式展示
+ * 3. 移除“反馈遗漏的广告”模块
+ * 4. 新增参考项目卡，分栏展示参考项目
  */
 class AboutActivity : Activity() {
 
@@ -43,7 +42,6 @@ class AboutActivity : Activity() {
         }
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            // ❌ 删除 spaceBetween，原生LinearLayout不支持
         }
         scroll.addView(content)
 
@@ -60,7 +58,6 @@ class AboutActivity : Activity() {
         )
         setContentView(root)
 
-        // 系统栏Insets适配
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -77,23 +74,11 @@ class AboutActivity : Activity() {
         buildAppCard()
 
         addSection("功能")
-        addCardBody(
-            listOf(
-                "广告移除：开屏、前台推荐、信息流、搜索、升级 / 下载页、详情页、榜单、顶栏推广位",
-                "界面精简：安全检测、领水果、我的页、详情页精选、底部标签栏",
-                "功能增强：下载超级岛（无视服务端灰度）",
-                "稳定性：崩溃自毁拦截、配置备份恢复、全局容错",
-                "模块自身：隐藏桌面图标（仍可从框架进入主页）"
-            ).joinToString("\n") { "· $it" }
-        )
+        buildFeatureCards()
 
-        addSection("反馈遗漏的广告")
-        addCardBody(
-            "榜单各分类（含游戏榜）的列表项由服务端下发，版本差异大。\n" +
-            "若仍有漏网广告：开启主页「榜单调试提示」，重启商店后抓取 logcat 中 MiMarketPurify 的 `[rank-tree]` 视图树，连同商店版本号反馈即可。"
-        )
+        addSection("参考项目")
+        buildReferenceProjects()
 
-        // 页脚致谢免责
         content.addView(TextView(this).apply {
             text = "上游：callng/NewFuckMarketAds、lisrain/NewFuckMarketAds_Fork\n" +
                     "仅供技术研究，使用风险由使用者自行承担。"
@@ -105,7 +90,6 @@ class AboutActivity : Activity() {
         })
     }
 
-    /** 顶栏：圆形返回图标 + 标题 */
     private fun buildTopBar(header: LinearLayout) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -135,7 +119,6 @@ class AboutActivity : Activity() {
         })
         header.addView(row)
 
-        // 分割线
         header.addView(View(this).apply {
             setBackgroundColor(Ui.DIVIDER)
             layoutParams = LinearLayout.LayoutParams(
@@ -146,9 +129,7 @@ class AboutActivity : Activity() {
     }
 
     /**
-     * 应用信息卡片
-     * 布局：左侧预留图标位 + 右侧文本信息 + 末尾跳转箭头
-     * 整张卡片点击打开源码仓库
+     * 应用信息卡：左侧引用应用图标，右侧为应用信息
      */
     private fun buildAppCard() {
         val card = card()
@@ -158,8 +139,8 @@ class AboutActivity : Activity() {
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
 
-        // 图标占位（后续可以放模块logo）
-        val iconPlaceHolder = ImageView(this).apply {
+        val appIcon = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher) // 引用应用图标
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
         }
@@ -174,7 +155,7 @@ class AboutActivity : Activity() {
 
         info.addView(cardTitle("Mi Market Purify"))
         info.addView(TextView(this).apply {
-            text = "版本 ${BuildConfig.VERSION_NAME}）"
+            text = "版本 ${BuildConfig.VERSION_NAME}"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
             setPadding(0, dp(4), 0, 0)
@@ -186,27 +167,147 @@ class AboutActivity : Activity() {
             setPadding(0, dp(4), 0, 0)
         })
         info.addView(TextView(this).apply {
-            text = "移除小米应用商店各处广告与推荐，并提供可勾选的界面精简选项。无联网、无上报，仅在商店进程内生效。"
+            text = "移除小米应用商店广告、推荐及部分干扰信息"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
             setLineSpacing(0f, 1.4f)
             setPadding(0, dp(8), 0, 0)
         })
 
-        // 跳转箭头
         val arrowTv = TextView(this).apply {
             text = "›"
             textSize = 22f
             setTextColor(Ui.TEXT_TERTIARY)
         }
 
-        row.addView(iconPlaceHolder)
+        row.addView(appIcon)
         row.addView(info)
         row.addView(arrowTv)
 
         card.addView(row)
         card.tappable(this, R.drawable.bg_card_ripple)
         card.setOnClickListener { openRepo() }
+        content.addView(card)
+    }
+
+    /**
+     * 功能区改为卡片式展示
+     * 每一项功能独立成一张小卡
+     */
+    private fun buildFeatureCards() {
+        val features = listOf(
+            "广告移除" to "开屏、前台推荐、信息流、搜索、升级/下载页、详情页、榜单、顶栏推广位",
+            "界面精简" to "安全检测、领水果、我的页、详情页精选、底部标签栏",
+            "功能增强" to "下载超级岛（无视服务端灰度）",
+            "稳定性" to "崩溃自毁拦截、配置备份恢复、全局容错",
+            "模块自身" to "隐藏桌面图标（仍可从框架进入主页）"
+        )
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        features.forEachIndexed { index, (title, desc) ->
+            val card = card()
+            card.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+
+                addView(cardTitle(title))
+                addView(TextView(this@AboutActivity).apply {
+                    text = desc
+                    textSize = Ui.ROW_SUMMARY
+                    setTextColor(Ui.TEXT_SECONDARY)
+                    setLineSpacing(0f, 1.4f)
+                    setPadding(0, dp(6), 0, 0)
+                })
+            })
+
+            if (index > 0) {
+                card.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also {
+                    it.topMargin = dp(10)
+                }
+            }
+
+            container.addView(card)
+        }
+
+        content.addView(container)
+    }
+
+    /**
+     * 参考项目卡片，分栏展示
+     * 这里用两列 Grid 思路；原生 View 下用 LinearLayout 嵌套实现
+     */
+    private fun buildReferenceProjects() {
+        val references = listOf(
+            "NewFuckMarketAds" to "callng",
+            "NewFuckMarketAds_Fork" to "lisrain",
+            "MiMarketPurify" to "参考项目"
+        )
+
+        val card = card()
+        val columnCount = 2
+
+        val outer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+
+        for (i in references.indices step columnCount) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+            for (j in 0 until columnCount) {
+                val position = i + j
+                if (position < references.size) {
+                    val (name, desc) = references[position]
+                    row.addView(LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                            if (j > 0) it.marginStart = dp(10)
+                        }
+                        setPadding(dp(12), dp(12), dp(12), dp(12))
+                        setBackgroundColor(Ui.BG)
+
+                        addView(TextView(this@AboutActivity).apply {
+                            text = name
+                            textSize = Ui.ROW_SUMMARY
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Ui.TEXT_PRIMARY)
+                        })
+                        addView(TextView(this@AboutActivity).apply {
+                            text = desc
+                            textSize = Ui.MICRO
+                            setTextColor(Ui.TEXT_SECONDARY)
+                            setLineSpacing(0f, 1.4f)
+                            setPadding(0, dp(4), 0, 0)
+                        })
+                    })
+                } else {
+                    addView(View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    })
+                }
+            }
+
+            if (i > 0) {
+                row.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also {
+                    it.topMargin = dp(10)
+                }
+            }
+
+            outer.addView(row)
+        }
+
+        card.addView(outer)
         content.addView(card)
     }
 
@@ -220,7 +321,6 @@ class AboutActivity : Activity() {
 
     private fun addSection(title: String) {
         val titleView = sectionTitle(title)
-        // 给section标题增加上边距，模拟原来spaceBetween的间距
         titleView.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -228,20 +328,5 @@ class AboutActivity : Activity() {
             it.topMargin = dp(16)
         }
         content.addView(titleView)
-    }
-
-    private fun addCardBody(text: String) {
-        val card = card()
-        card.addView(cardText(text).apply {
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-        })
-        // 卡片增加上边距，实现区块间距
-        card.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).also {
-            it.topMargin = dp(12)
-        }
-        content.addView(card)
     }
 }
