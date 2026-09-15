@@ -80,6 +80,9 @@ object Ui {
 /** dp -> px */
 fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+/** dp -> px（浮点）：给 cornerRadius 这类需要 float 的场合用 */
+fun Context.dpf(v: Float): Float = v * resources.displayMetrics.density
+
 /**
  * 分组容器：白底圆角，内部按“行 + 分隔线”堆叠。
  * 这是 HyperOS 设置里最常见的形态——一个分组一整块容器，而不是每行一张卡片。
