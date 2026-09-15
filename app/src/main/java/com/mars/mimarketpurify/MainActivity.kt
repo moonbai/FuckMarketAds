@@ -40,11 +40,14 @@ class MainActivity : SettingsBaseActivity() {
         Settings.KEY_UPDATE_DL, Settings.KEY_DETAIL, Settings.KEY_RANK
     )
 
-    /** 二级页「「我的」页」里的三个开关，用于在主页入口行显示启用数量 */
+    /** 二级页「「我的」页」里的四个开关，用于在主页入口行显示启用数量 */
     private val mineKeys = listOf(
-        Settings.KEY_MINE_RECOMMEND, Settings.KEY_MINE_OFFICIAL_TAB, Settings.KEY_MINE_CLEANUP
+        Settings.KEY_MINE_RECOMMEND,
+        Settings.KEY_MINE_OFFICIAL_TAB,
+        Settings.KEY_MINE_CLEANUP,
+        Settings.KEY_MINE_SUMMARY
     )
-
+    
     /** 二级页「其他界面净化」里的开关 */
     private val miscKeys = listOf(
         Settings.KEY_SECURITY,

@@ -81,6 +81,13 @@ object Settings {
 
     /** 移除「榜单」界面广告 / 推广卡片 */
     const val KEY_RANK = "rank_ads"
+    
+    //===== 我的页净化 =====
+    const val KEY_MINE_SUMMARY = "mine_summary" // 新增：顶部个人信息区
+    
+    //===== 升级卡片增强（高级功能） =====
+    const val KEY_ORCHARD_SKIN = "orchard_skin"
+    const val KEY_CARD_EXPAND = "card_expand"
 
     /** 「我的」页 · 应用推荐位（mine_ad_container） */
     const val KEY_MINE_RECOMMEND = "mine_recommend"

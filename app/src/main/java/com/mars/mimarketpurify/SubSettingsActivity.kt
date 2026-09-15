@@ -184,6 +184,13 @@ class SubSettingsActivity : SettingsBaseActivity() {
             checked = readLocal(Settings.KEY_MINE_CLEANUP, true),
             tag = Settings.KEY_MINE_CLEANUP
         ) { on -> writeRemote(Settings.KEY_MINE_CLEANUP, on) }
+        addSwitchRow(
+            group = group,
+            title = "隐藏顶部个人信息区",
+            summary = "隐藏头像、昵称、消息、收藏（mine_summary_root）",
+            checked = readLocal(Settings.KEY_MINE_SUMMARY, false),
+            tag = Settings.KEY_MINE_SUMMARY
+        ) { on -> writeRemote(Settings.KEY_MINE_SUMMARY, on) }
         content.addView(group)
         addFooter("改动一般在下次进入「我的」页时生效。")
     }
