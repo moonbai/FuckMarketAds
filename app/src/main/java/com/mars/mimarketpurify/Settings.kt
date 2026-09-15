@@ -82,6 +82,13 @@ object Settings {
     /** 移除「榜单」界面广告 / 推广卡片 */
     const val KEY_RANK = "rank_ads"
 
+    /**
+     * 榜单调试：开启后，进入榜单时把**未被识别**的榜单项类型以 Toast 弹出来。
+     * 目的是让用户在手机上就能拿到漏网广告的组件类型，而不需要电脑抓 logcat。
+     * 默认关闭——它会干扰正常使用，反馈完请关掉。
+     */
+    const val KEY_RANK_DEBUG = "rank_debug"
+
     /** 强制启用下载进度小米超级岛（无视服务端灰度） */
     const val KEY_ISLAND = "super_island"
 

@@ -362,6 +362,14 @@ class MainActivity : Activity(), ServiceStateListener {
             checked = isLauncherIconHidden(),
             tag = "hide_launcher_icon"
         ) { hide -> applyHideIcon(hide) }
+        group.addView(rowDivider())
+        addSwitchRow(
+            group = group,
+            title = "榜单调试提示",
+            summary = "开启后进入榜单会弹出未识别的组件类型，用于反馈漏网的广告；用完请关掉",
+            checked = readLocal(Settings.KEY_RANK_DEBUG, false),
+            tag = Settings.KEY_RANK_DEBUG
+        ) { on -> writeRemote(Settings.KEY_RANK_DEBUG, on) }
         content.addView(group)
 
         content.addView(TextView(this).apply {

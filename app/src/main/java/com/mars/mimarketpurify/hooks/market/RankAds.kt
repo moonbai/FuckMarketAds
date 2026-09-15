@@ -1,8 +1,11 @@
 package com.mars.mimarketpurify.hooks.market
 
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import android.widget.Toast
 import com.mars.mimarketpurify.HookEnv
 import com.mars.mimarketpurify.Settings
 import com.mars.mimarketpurify.TAG
@@ -74,10 +77,18 @@ object RankAds : BaseHook() {
         "com.xiaomi.market.common.view.ListAppsView"
     )
 
+    /** 广告角标文字：不依赖 bean 字段的第二条腿，按可见文本判断 */
+    private val adLabels = setOf("广告", "推广", "赞助", "热推", "ad", "ads")
+
     /** 已上报过的未识别形态，避免日志刷屏 */
     private val reported = Collections.synchronizedSet(mutableSetOf<String>())
 
+    /** 文本兜底扫描的限流时间戳：滚动时 onBindData 会频繁触发，不能每次都遍历 */
+    @Volatile
+    private var lastScanAt = 0L
+
     override fun init() {
+        var bound = 0
         candidates.forEach { className ->
             runCatching {
                 ClassUtil.loadClass(className)
@@ -99,16 +110,23 @@ object RankAds : BaseHook() {
                                     else -> {
                                         logUnknownShape(view, bean)
                                         hideAdSubViews(view)
+                                        hideLabelledAds(view)
                                     }
                                 }
                             }
                             return@hooked proceed()
                         }
+                        bound++
                     }
             }.onFailure {
                 HookEnv.base.log(Log.VERBOSE, TAG, "$name: 候选类不存在，跳过 $className", null)
             }
         }
+        // 关键诊断：如果 bound 为 0，说明一个候选类都没命中——榜单根本没走这里的渲染，
+        // 这时无论补多少关键字都没用，必须换容器（见 logUnknownShape 的提示）。
+        HookEnv.base.log(
+            Log.WARN, TAG, "$name: 已挂载 $bound 个绑定点（候选 ${candidates.size} 个类）", null
+        )
     }
 
     /** 从参数里挑出疑似 bean 的对象：排除 View 与基础类型 */
@@ -186,6 +204,54 @@ object RankAds : BaseHook() {
         }
     }
 
+    /**
+     * 文本兜底：向上找到列表容器，遍历可见的 item，凡是带「广告 / 推广 / 赞助」字样的整条隐藏。
+     *
+     * 这条不依赖 bean 字段，专门用来对付「组件类型里完全没有 ad 关键字」的情况。
+     * 限流 1.5s，且只扫直接子项的前几层文本，避免滚动时卡顿。
+     */
+    private fun hideLabelledAds(view: View) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastScanAt < 1500) return
+        lastScanAt = now
+
+        runCatching {
+            val list = findListContainer(view) ?: return
+            val count = list.childCount.coerceAtMost(24)
+            for (i in 0 until count) {
+                val item = list.getChildAt(i) ?: continue
+                if (item.visibility != View.VISIBLE) continue
+                if (hasAdLabel(item, 0)) hide(item)
+            }
+        }
+    }
+
+    /** 向上找 RecyclerView（按类名判断，避免为此引入 recyclerview 依赖） */
+    private fun findListContainer(view: View): ViewGroup? {
+        var p = view.parent
+        while (p is View) {
+            if (p is ViewGroup && p::class.java.name.contains("RecyclerView")) return p
+            p = p.parent
+        }
+        return null
+    }
+
+    /** 递归查找广告角标文本，最多 5 层 */
+    private fun hasAdLabel(view: View, depth: Int): Boolean {
+        if (depth > 5) return false
+        if (view is TextView) {
+            val t = view.text?.toString()?.trim()?.lowercase()
+            if (t != null && t in adLabels) return true
+        }
+        if (view !is ViewGroup) return false
+        val count = view.childCount.coerceAtMost(16)
+        for (i in 0 until count) {
+            val child = view.getChildAt(i) ?: continue
+            if (hasAdLabel(child, depth + 1)) return true
+        }
+        return false
+    }
+
     /** 上报尚未识别的榜单项形态，便于精确补充关键字 */
     private fun logUnknownShape(view: View, bean: Any?) {
         val type = if (bean == null) null else {
@@ -199,6 +265,15 @@ object RankAds : BaseHook() {
             append(" type=")
             append(type ?: "<none>")
         }
-        if (reported.add(shape)) HookEnv.base.log(Log.DEBUG, TAG, shape, null)
+        if (reported.add(shape)) {
+            // 用 WARN 而不是 DEBUG：多数框架 / 日志 App 会过滤掉 DEBUG，等于白打
+            HookEnv.base.log(Log.WARN, TAG, shape, null)
+            if (Settings.isEnabled(Settings.KEY_RANK_DEBUG, false)) {
+                // 手机上直接可见：不需要电脑抓 logcat
+                view.post {
+                    runCatching { Toast.makeText(view.context, shape, Toast.LENGTH_LONG).show() }
+                }
+            }
+        }
     }
 }

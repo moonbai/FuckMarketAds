@@ -117,6 +117,25 @@ jobs:
         if: steps.build.outcome == 'failure'
         run: exit 1
 
+      - name: Publish build summary (always)
+        if: always()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          mkdir -p ci-status
+          {
+            echo "run     : ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+            echo "sha     : ${{ github.sha }}"
+            echo "outcome : ${{ steps.build.outcome }}"
+            echo "=== produced apk ==="
+            find app/build/outputs/apk -type f -name '*.apk' -printf '%p\t%s bytes\n' 2>/dev/null | sort
+            echo "=== kotlin error lines (e:) ==="
+            grep -nE '^e: ' gradle-build.log 2>/dev/null | head -40 || echo "(none)"
+          } > ci-status/latest.txt
+          git add -f ci-status
+          git commit -m "ci-status: run ${{ github.run_id }} [skip ci]" || echo "(nothing to commit)"
+          git push origin HEAD:master || echo "(push failed)"
+
       # Only on failure: commit ci-report.log so it can be read without Actions-Log
       # API access. The message carries [skip ci] to avoid re-triggering itself.
       #
