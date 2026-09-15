@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    开关轨道：固定 48x28dp，圆角取高度的一半（14dp）形成胶囊。
+    高度比滑块（24dp）高 4dp —— 这样滑块会被完整包在轨道内部，
+    而不是像系统默认 drawable 那样上下戳出轨道外。
+    实际颜色由代码用 ColorStateList 着色（开启强调蓝 / 关闭浅灰），
+    这里的 solid 只是占位。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <size
+        android:width="48dp"
+        android:height="28dp" />
+    <corners android:radius="14dp" />
+    <solid android:color="#FFFFFF" />
+</shape>

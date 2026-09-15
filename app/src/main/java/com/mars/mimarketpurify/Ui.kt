@@ -45,9 +45,12 @@ object Ui {
     val STATE_INACTIVE_SOFT = 0x14FF6B35.toInt()
 
     // ===== 开关 / 勾选框 =====
-    /** 开关轨道：未选中时用明确的灰，避免白滑块与浅灰轨道糊在一起 */
+    /**
+     * 开关轨道未选中色：明确的灰，避免白滑块与浅灰轨道糊在一起。
+     * 轨道 / 滑块的尺寸与形状见 `switch_track.xml` / `switch_thumb.xml`
+     * （28dp 轨道包住 24dp 滑块，系统默认的滑块会戳出轨道外）。
+     */
     val SWITCH_TRACK_OFF = 0xFFD1D1D6.toInt()
-    val SWITCH_THUMB = 0xFFFFFFFF.toInt()
     val CHECK_OFF = 0xFFC7C7CC.toInt()
 
     // ===== 字号层级（sp）=====

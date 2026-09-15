@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    开关滑块：24dp 白色圆点，比轨道矮 4dp，因此上下各留 2dp 被轨道包住。
+    极淡的描边让白点在浅灰（关闭态）轨道上也能看清轮廓。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <size
+        android:width="24dp"
+        android:height="24dp" />
+    <solid android:color="#FFFFFF" />
+    <stroke
+        android:width="0.6dp"
+        android:color="#29000000" />
+</shape>

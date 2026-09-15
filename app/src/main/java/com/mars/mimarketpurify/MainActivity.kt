@@ -411,8 +411,14 @@ class MainActivity : Activity(), ServiceStateListener {
             this.tag = tag
             isChecked = checked
             setOnCheckedChangeListener { _, isChecked -> onChanged(isChecked) }
-            thumbDrawable?.let { thumbDrawable = it.tinted(Ui.SWITCH_THUMB, Ui.SWITCH_THUMB) }
-            trackDrawable?.let { trackDrawable = it.tinted(Ui.ACCENT, Ui.SWITCH_TRACK_OFF) }
+            // 用自定义的 track / thumb：28dp 高的轨道把 24dp 的白色滑块完整包住，
+            // 系统默认 drawable 的滑块会比轨道高，视觉上像“戳出轨道外”。
+            getDrawable(R.drawable.switch_track)
+                ?.let { trackDrawable = it.tinted(Ui.ACCENT, Ui.SWITCH_TRACK_OFF) }
+            getDrawable(R.drawable.switch_thumb)
+                ?.let { thumbDrawable = it }
+            // 与轨道等宽，保证滑块滑到两端时左右留白对称
+            switchMinWidth = dp(48)
         }
 
         row.addView(textWrap)
