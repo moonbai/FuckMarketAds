@@ -82,7 +82,17 @@ object Settings {
     /** 移除「榜单」界面广告 / 推广卡片 */
     const val KEY_RANK = "rank_ads"
 
-    /** 净化「我的」页：广告容器 / 官方入口 tab / 手机清理入口 */
+    /** 「我的」页 · 应用推荐位（mine_ad_container） */
+    const val KEY_MINE_RECOMMEND = "mine_recommend"
+
+    /** 「我的」页 · 官方入口 tab（mine_middle_menu_container） */
+    const val KEY_MINE_OFFICIAL_TAB = "mine_official_tab"
+
+    /**
+     * 「我的」页 · 手机清理与应用卸载。
+     * 单独成一个开关是因为屏蔽后会把「应用升级」卡片拉宽，
+     * 这是有副作用的改动，值得让用户能单独关掉。
+     */
     const val KEY_MINE_CLEANUP = "mine_cleanup"
 
     /** 隐藏应用详情页的「精选」入口 */

@@ -90,8 +90,16 @@ class MainActivity : Activity(), ServiceStateListener {
                     "勾选要保留的标签；同时清理首页顶栏云控推广位", true
                 ),
                 Feature(
-                    Settings.KEY_MINE_CLEANUP, "净化「我的」页",
-                    "隐藏「我的」页的广告位、官方入口 tab 与手机清理入口", true
+                    Settings.KEY_MINE_RECOMMEND, "「我的」页 · 应用推荐",
+                    "隐藏「我的」页顶部的应用推荐广告位", true
+                ),
+                Feature(
+                    Settings.KEY_MINE_OFFICIAL_TAB, "「我的」页 · 官方入口",
+                    "隐藏「我的」页中间的官方功能入口 tab", true
+                ),
+                Feature(
+                    Settings.KEY_MINE_CLEANUP, "「我的」页 · 清理与卸载",
+                    "隐藏手机清理与应用卸载入口；屏蔽后会把同排的「应用升级」卡片撑满整行", true
                 ),
                 Feature(
                     Settings.KEY_DETAIL_FEATURED, "隐藏详情页「精选」",

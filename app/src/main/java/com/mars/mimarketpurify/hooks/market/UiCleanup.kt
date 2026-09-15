@@ -3,9 +3,12 @@ package com.mars.mimarketpurify.hooks.market
 import android.app.Activity
 import android.graphics.drawable.GradientDrawable
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
+import java.util.Collections
 import com.mars.mimarketpurify.HookEnv
 import com.mars.mimarketpurify.Settings
 import com.mars.mimarketpurify.TAG
@@ -35,15 +38,20 @@ object UiCleanup : BaseHook() {
         get() = "界面元素屏蔽"
 
     /**
-     * 「我的」页：广告容器 / 官方入口 tab / 手机清理入口 / 应用卸载入口。
-     *
+     * 「我的」页的三组目标，各自对应一个独立开关——
+     * 三件事的副作用完全不同：应用推荐和官方 tab 只是「不显示」，
+     * 而清理 / 卸载隐藏后还会把「应用升级」卡片拉宽，值得单独控制。
+     */
+    private val mineRecommendIds = listOf("mine_ad_container")
+
+    private val mineTabIds = listOf("mine_middle_menu_container")
+
+    /**
      * 手机清理与应用卸载在「我的」页是**同一组里的相邻两行**，只隐藏前者时
      * 外层容器仍在，看起来就像没生效；两个一起屏蔽才干净。
+     * 手机清理在不同版本里 id 不同，两种都列上；解析不到的会自动跳过。
      */
-    private val mineIds = listOf(
-        "mine_ad_container",
-        "mine_middle_menu_container",
-        // 手机清理在不同版本里 id 不同，两种都列上；解析不到的会自动跳过
+    private val mineCleanupIds = listOf(
         "phone_clear_forbid_layout",
         "phone_clear_layout",
         "mine_uninstall_app_layout"
@@ -52,21 +60,20 @@ object UiCleanup : BaseHook() {
     /** 应用详情页的「精选」入口 */
     private val featuredTexts = setOf("精选")
 
-    /**
-     * 屏蔽同组其它入口后需要**撑满整行**的入口。
-     *
-     * 「手机清理 / 应用卸载 / 应用更新」在「我的」页是同一行的格子，
-     * 把前两个隐藏后第三个仍保持着原来的格宽，右边留一大块空白。
-     * 所以隐藏之外还要把它拉宽——否则看起来像是布局坏了。
-     */
-    private val expandIds = listOf("update_layout", "mine_update_layout")
+    /** 缓存解析结果：key -> 已解析的 id 集合，避免每个 View 都做一次资源名解析 */
+    private val resolved = Collections.synchronizedMap(mutableMapOf<String, Set<Int>>())
 
-    /** 缓存解析结果：id -> 是否目标，避免每个 View 都做一次资源名解析 */
-    @Volatile
-    private var resolvedIds: Set<Int>? = null
+    /** 已重排过的「应用升级」卡片，避免反复处理同一个视图 */
+    private val tunedCards = Collections.synchronizedSet(mutableSetOf<Int>())
 
-    @Volatile
-    private var resolvedExpandIds: Set<Int>? = null
+    /** 要把内部零件撑到整行宽的应用升级卡片 */
+    private val cardIds = listOf("update_layout", "mine_update_layout")
+
+    /** 卡片里需要横排铺满的图标（app_icon1..4，按 id 名拼） */
+    private val iconNames = (1..4).map { "app_icon$it" }
+
+    private val titleLayoutId = "mine_app_update_title_layout"
+    private val buttonLayoutId = "update_button_layout"
 
     override fun init() {
         // 路径 A：视图一 attach 就检查
@@ -121,16 +128,20 @@ object UiCleanup : BaseHook() {
         if (v.visibility != View.VISIBLE) return
         runCatching {
             if (isMineTarget(v) || isFeaturedTarget(v)) hide(v)
-            else if (isExpandTarget(v)) expand(v)
+            else if (isCardTarget(v)) v.post { rebuildCard(v) }
         }
     }
 
-    /** 「我的」页的三个容器：按资源 id 精确命中 */
+    /** 「我的」页的目标：每组各看自己的开关，按资源 id 精确命中 */
     private fun isMineTarget(v: View): Boolean {
-        if (!Settings.isEnabled(Settings.KEY_MINE_CLEANUP, true)) return false
         val id = v.id
         if (id == View.NO_ID || id <= 0) return false
-        return id in targetIds(v)
+        return (Settings.isEnabled(Settings.KEY_MINE_RECOMMEND, true) &&
+            id in idSet(v, "recommend", mineRecommendIds)) ||
+            (Settings.isEnabled(Settings.KEY_MINE_OFFICIAL_TAB, true) &&
+                id in idSet(v, "tab", mineTabIds)) ||
+            (Settings.isEnabled(Settings.KEY_MINE_CLEANUP, true) &&
+                id in idSet(v, "cleanup", mineCleanupIds))
     }
 
     /** 详情页「精选」：按文案命中，并限定只在详情页里生效，避免误伤别处的“精选” */
@@ -143,125 +154,156 @@ object UiCleanup : BaseHook() {
     }
 
     /** 需要撑满整行的入口：命中「我的」页的 update_layout */
-    private fun isExpandTarget(v: View): Boolean {
+    private fun isCardTarget(v: View): Boolean {
         if (!Settings.isEnabled(Settings.KEY_MINE_CLEANUP, true)) return false
-        // update_layout 这种通用 id 在别的页面也可能出现，限定只在主界面动手
+        // update_layout 这类 id 在别的页面也可能出现，限定只在主界面动手
         if (v.context?.javaClass?.name?.contains("MarketTabActivity") != true) return false
         val id = v.id
         if (id == View.NO_ID || id <= 0) return false
-        return id in expandIdSet(v)
+        return id in idSet(v, "card", cardIds)
     }
 
     /**
-     * 把「应用升级」卡片拉宽到撑满整行，并**顺带把里面的图标网格重排成一行**。
+     * 重构「应用升级」卡片内部布局，而不是去动卡片自己的尺寸。
      *
-     * 关键取舍：**不去重建商店自己的图标网格**。
-     * 那个网格是 RecyclerView / 自绘容器，图标 View 很可能被复用、
-     * 事后还会被商店的绑定逻辑改回去——一旦打架就是整块卡片显示错乱。
-     * 更稳的办法是只改容器尺寸，让原本 2 列 2 行的格子**自然**摊成 1 行 4 列。
+     * 上一版的做法（把卡片拉宽、高度交给内容测量）翻车了：卡片被撑得极高，
+     * 图标仍挤在左侧 2x2，底部露出大片背景图。原因很清楚——
+     * `update_layout` 里有背景图层与一堆布局约束，直接改它的 `layoutParams`
+     * 会让测量结果完全失控。
      *
-     * 为此做两件事：
-     *  1. 卡片撑满 + 右侧内边距与左对齐，否则图标贴着卡片圆角；
-     *  2. 卡片高度由**内容测量决定**（把固定高度与最小高度清掉），
-     *     否则行数从 2 变 1 之后底部的「一键升级」按钮会被裁掉。
+     * 现在换成「只改零件、不动卡片」：
+     *  1. **标题行**（`mine_app_update_title_layout`）撑满宽；
+     *  2. **图标行**（`update_icon_layout`）本身已经是横向容器，
+     *     把里面 4 个图标 `app_icon1..4` 的宽度清成 0 并给 `weight=1`，
+     *     它们就等分整行——**不改容器层级、不搬 View**，所以商店自己的
+     *     绑定逻辑最多把 weight 改回去，也不会把卡片搞乱；
+     *  3. **一键升级按钮**（`update_button_layout`）撑满并在两侧留出内边距；
+     *  4. 按钮圆角对齐卡片内边距，避免顶到卡片圆角上。
+     *
+     * 用 `post` 延后到测量完成后再改，并且每张卡片只处理一次。
      */
-    private fun expand(v: View) {
+    private fun rebuildCard(v: View) {
+        if (!tunedCards.add(System.identityHashCode(v))) return
         runCatching {
-            val heightBefore = v.height
-            val paddingH = v.paddingLeft.coerceAtLeast(v.paddingRight)
-            val lp = v.layoutParams
-            if (lp != null) {
-                // ConstraintLayout 里 MATCH_PARENT 无效，必须用 0dp（match_constraint）
-                lp.width = if (lp.javaClass.name.contains("ConstraintLayout")) 0
-                else ViewGroup.LayoutParams.MATCH_PARENT
-                // 横向 LinearLayout 的 weight 会盖掉宽度，必须清零
-                runCatching { lp.javaClass.getField("weight").set(lp, 0f) }
-                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
-                v.layoutParams = lp
-            }
-            // 内边距左右对齐，图标不会贴着圆角
-            v.setPadding(paddingH, v.paddingTop, paddingH, v.paddingBottom)
-            clearMinHeight(v)
-            v.requestLayout()
+            val pad = v.paddingLeft.coerceAtLeast(v.paddingRight)
+            val tinted = mutableListOf<String>()
 
-            // 高度变了说明行数真的重排了，值得记一笔；没变就别刷日志
-            v.post {
-                runCatching {
-                    if (heightBefore > 0 && v.height != heightBefore) {
-                        HookEnv.base.log(
-                            Log.WARN, TAG,
-                            "$name: 应用升级卡片重排 ${heightBefore}px -> ${v.height}px", null
-                        )
+            findByIdName(v, titleLayoutId)?.let { fillWidth(it); tinted += "标题行" }
+
+            // 图标行：先让它满宽，再让 4 个图标等分
+            val iconRow = findByIdName(v, "update_icon_layout")
+            if (iconRow != null) {
+                fillWidth(iconRow)
+                val icons = iconNames.mapNotNull { findByIdName(v, it) }
+                if (icons.size >= 2) {
+                    icons.forEach { icon ->
+                        setEqualWeight(icon)
+                        // 图标本身要能看见，别被压成 0
+                        runCatching { icon.minimumWidth = icon.width.coerceAtLeast(1) }
                     }
-                    roundChildren(v)
+                    tinted += "图标行x${icons.size}"
                 }
+            }
+
+            // 一键升级按钮：撑满 + 两侧留白 + 圆角贴合卡片
+            findByIdName(v, buttonLayoutId)?.let { btn ->
+                fillWidth(btn)
+                (btn.layoutParams as? ViewGroup.MarginLayoutParams)?.let { ml ->
+                    ml.marginStart = pad
+                    ml.marginEnd = pad
+                    btn.layoutParams = ml
+                }
+                roundButton(btn, pad)
+                tinted += "升级按钮"
+            }
+
+            if (tinted.isNotEmpty()) {
+                HookEnv.base.log(
+                    Log.WARN, TAG, "$name: 应用升级卡片已重排（${tinted.joinToString("、")}）", null
+                )
             }
         }.onFailure {
-            HookEnv.base.log(Log.VERBOSE, TAG, "$name: 拉宽失败 ${it.message}", null)
+            HookEnv.base.log(Log.VERBOSE, TAG, "$name: 重排卡片失败 ${it.message}", null)
+            tunedCards.remove(System.identityHashCode(v))
         }
     }
 
-    /**
-     * 清掉限制高度的属性。
-     * 注意不能反射调用 `setMinimumHeight` / `setMinimumWidth`——
-     * 那是 View 的 public 方法，在部分 ROM 上会被内联优化掉（NoSuchMethod）。
-     * 只反射自己的字段，失败就放弃（高度已经设成 WRAP_CONTENT，多数情况够用）。
-     */
-    private fun clearMinHeight(v: View) {
+    /** 撑满父容器：兼容普通 ViewGroup 与 ConstraintLayout（后者必须用 0dp） */
+    private fun fillWidth(target: View) {
         runCatching {
-            val f = View::class.java.getDeclaredField("mMinHeight")
-            f.isAccessible = true
-            f.setInt(v, 0)
+            val lp = target.layoutParams ?: return
+            lp.width = if (lp.javaClass.name.contains("ConstraintLayout")) 0
+            else ViewGroup.LayoutParams.MATCH_PARENT
+            runCatching { lp.javaClass.getField("weight").set(lp, 0f) }
+            target.layoutParams = lp
+            target.requestLayout()
         }
     }
 
     /**
-     * 圆角修正：只处理**圆形/大圆角白底按钮**的反直觉情况——
-     * 卡片内边距变大后仍撑满宽度的按钮，左右会顶到卡片圆角上。
-     * 给它补上等于卡片内边距的圆角半径，视觉上就「坐」进卡片里了。
-     *
-     * 只认背景是 [GradientDrawable] 的 View，不碰商店自己的图片背景。
+     * 让子 View 等分父容器的横向空间。
+     * `weight=1` 只有横向 [LinearLayout] 认；父容器不是的话就退化成撑满，
+     * 至少不会把图标挤成一条缝。
      */
-    private fun roundChildren(root: View, depth: Int = 0) {
-        if (depth > 3 || root !is ViewGroup) return
-        val pad = root.paddingLeft
-        val count = root.childCount.coerceAtMost(16)
-        for (i in 0 until count) {
-            val child = root.getChildAt(i) ?: continue
-            runCatching {
-                val bg = child.background
-                if (bg is GradientDrawable && child.width > 0) {
-                    // 只有“已经接近满宽”的按钮才需要收圆角，图标之类不会被误伤
-                    val nearlyFull = child.width >= root.width - 2 * pad - 8
-                    val radius = bg.cornerRadius
-                    if (nearlyFull && radius > 0f && radius < pad) {
-                        bg.cornerRadius = pad.toFloat()
-                    }
-                }
+    private fun setEqualWeight(target: View) {
+        runCatching {
+            val parent = target.parent as? LinearLayout
+            val lp = target.layoutParams
+            if (parent != null && parent.orientation == LinearLayout.HORIZONTAL &&
+                lp is LinearLayout.LayoutParams
+            ) {
+                lp.width = 0
+                lp.weight = 1f
+                lp.gravity = Gravity.CENTER
+                target.layoutParams = lp
+            } else {
+                fillWidth(target)
             }
-            roundChildren(child, depth + 1)
+            target.requestLayout()
         }
     }
 
-    /** 首次调用时把 id 名解析成 int 并缓存；解析不到（版本变了）就静默跳过 */
-    private fun targetIds(v: View): Set<Int> {
-        resolvedIds?.let { return it }
-        val set = resolve(v, mineIds)
-        resolvedIds = set
+    /** 把按钮圆角对齐卡片内边距；只处理粒子白底按钮，不碰图片背景 */
+    private fun roundButton(btn: View, pad: Int) {
+        if (pad <= 0) return
+        runCatching {
+            val bg = btn.background as? GradientDrawable ?: return
+            val radius = bg.cornerRadius
+            // 圆角比内边距小才需要补；已经是胶囊(pad*2 以上)的保持原样更自然
+            if (radius > 0f && radius < pad) bg.cornerRadius = pad.toFloat()
+        }
+    }
+
+    /** 按缓存键取一组已解析的 id；每组只在首次用到时解析一次 */
+    private fun idSet(v: View, key: String, names: List<String>): Set<Int> {
+        resolved[key]?.let { return it }
+        val set = resolve(v, names)
+        resolved[key] = set
         HookEnv.base.log(
-            Log.WARN, TAG, "$name: 解析到 ${set.size}/${mineIds.size} 个屏蔽 id", null
+            Log.WARN, TAG, "$name: $key 解析到 ${set.size}/${names.size} 个 id", null
         )
         return set
     }
 
-    private fun expandIdSet(v: View): Set<Int> {
-        resolvedExpandIds?.let { return it }
-        val set = resolve(v, expandIds)
-        resolvedExpandIds = set
-        HookEnv.base.log(
-            Log.WARN, TAG, "$name: 解析到 ${set.size}/${expandIds.size} 个拉宽 id", null
-        )
-        return set
+    /**
+     * 按资源名在子树里找 View。
+     * 递归到 6 层、每层最多 24 个子节点——`update_layout` 里零件不多，
+     * 这个范围足够，也不会在最坏情况下遍历太久。
+     */
+    private fun findByIdName(view: View, name: String, depth: Int = 0): View? {
+        val id = idSet(view, "single:$name", listOf(name)).firstOrNull() ?: return null
+        return findByIdDeep(view, id, depth)
+    }
+
+    private fun findByIdDeep(view: View, id: Int, depth: Int): View? {
+        if (view.id == id) return view
+        if (depth >= 6 || view !is ViewGroup) return null
+        val count = view.childCount.coerceAtMost(24)
+        for (i in 0 until count) {
+            val child = view.getChildAt(i) ?: continue
+            findByIdDeep(child, id, depth + 1)?.let { return it }
+        }
+        return null
     }
 
     private fun resolve(v: View, names: List<String>): Set<Int> =

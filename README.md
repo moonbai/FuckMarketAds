@@ -19,9 +19,14 @@
 ### 界面精简
 - 应用安全检测视图
 - 「领水果」活动入口
-- 「我的」页：广告容器、官方入口 tab、手机清理与应用卸载
-  （清理的 id 两种都覆盖：`phone_clear_layout` / `phone_clear_forbid_layout`）；
-  隐藏后会把同排剩下的「应用更新」**拉宽撑满整行**，不留一块空白
+- 「我的」页拆成三个独立开关：**应用推荐**（`mine_ad_container`）、
+  **官方入口**（`mine_middle_menu_container`）、**清理与卸载**
+  （`phone_clear_layout` / `phone_clear_forbid_layout` / `mine_uninstall_app_layout`）。
+  之所以拆开：前两个只是「不显示」，第三个隐藏后还要把同排的「应用升级」卡片
+  重排成整行，副作用不同，得能单独关掉。
+  卡片重排只改**内部零件**（标题行、`update_icon_layout` 里四个图标等分、
+  一键升级按钮撑满并留边距），不改卡片自身的尺寸——直接改 `update_layout`
+  的 `layoutParams` 会让测量失控，卡片被撑得极高、图标仍挤在左侧
 - 详情页「精选」
 - 底部标签栏筛选：勾选要保留的标签，其余隐藏
 
