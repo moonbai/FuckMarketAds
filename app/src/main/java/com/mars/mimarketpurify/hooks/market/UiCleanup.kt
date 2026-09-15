@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.Collections
@@ -215,21 +216,23 @@ object UiCleanup : BaseHook() {
     }
 
     /**
-     * 重构「应用升级」卡片内部布局，而不是去动卡片自己的尺寸。
+     * 把「应用升级」卡片**横向铺开**，并把它里面的四个图标排成一行。
      *
-     * 上一版的做法（把卡片拉宽、高度交给内容测量）翻车了：卡片被撑得极高，
-     * 图标仍挤在左侧 2x2，底部露出大片背景图。原因很清楚——
-     * `update_layout` 里有背景图层与一堆布局约束，直接改它的 `layoutParams`
-     * 会让测量结果完全失控。
+     * 踩过的两个坑，都记在这里免得再踩：
+     *  1. 早期版本直接改 `update_layout` 的 `layoutParams`（把高度交给内容测量），
+     *     结果卡片被撑得极高、底部露出大片背景图——卡片里有背景图层与一堆约束，
+     *     改它自己的尺寸会让测量彻底失控。所以现在**高度一律不碰**；
+     *  2. `update_icon_layout` 并不是横向容器，之前 `setEqualWeight` 一发现父容器
+     *     不是横向就退化成 `fillWidth`（`MATCH_PARENT`），四个图标于是各占满一行，
+     *     看着就是竖排。现在先把容器掰成横向，再把图标搬进来等分。
      *
-     * 现在换成「只改零件、不动卡片」：
-     *  1. **标题行**（`mine_app_update_title_layout`）撑满宽；
-     *  2. **图标行**（`update_icon_layout`）本身已经是横向容器，
-     *     把里面 4 个图标 `app_icon1..4` 的宽度清成 0 并给 `weight=1`，
-     *     它们就等分整行——**不改容器层级、不搬 View**，所以商店自己的
-     *     绑定逻辑最多把 weight 改回去，也不会把卡片搞乱；
-     *  3. **一键升级按钮**（`update_button_layout`）撑满并在两侧留出内边距；
-     *  4. 按钮圆角对齐卡片内边距，避免顶到卡片圆角上。
+     * 具体三步：
+     *  1. **卡片铺满**：父容器是横向 LinearLayout 时给它 `width=0 / weight=1`，
+     *     吃掉清理 / 卸载被隐藏后空出来的那一整块；
+     *  2. **标题行**（`mine_app_update_title_layout`）撑满宽；
+     *  3. **图标行**（`update_icon_layout`）切横向，`app_icon1..4` 搬进去等分；
+     *  4. **一键升级按钮**（`update_button_layout`）撑满并在两侧留出内边距，
+     *     圆角对齐卡片内边距，避免顶到卡片圆角上。
      *
      * 用 `post` 延后到测量完成后再改，并且每张卡片只处理一次。
      */
@@ -239,20 +242,32 @@ object UiCleanup : BaseHook() {
             val pad = v.paddingLeft.coerceAtLeast(v.paddingRight)
             val tinted = mutableListOf<String>()
 
+            // ① 卡片自己先横向铺开：清理 / 卸载被隐藏后，同排会空出一整块，
+            //    卡片不主动吃下这块空间的话就会缩在最左边。
+            //    只在父容器是**横向** LinearLayout 时动手——纵向容器上设 weight
+            //    会把卡片拉成满屏高，那是上一个版本翻车的样子。
+            if (expandInRow(v)) tinted += "卡片铺满"
+
             findByIdName(v, titleLayoutId)?.let { fillWidth(it); tinted += "标题行" }
 
-            // 图标行：先让它满宽，再让 4 个图标等分
+            // ② 图标行：强制横向，并把 4 个图标**搬进这一行**等分
             val iconRow = findByIdName(v, "update_icon_layout")
             if (iconRow != null) {
                 fillWidth(iconRow)
+                forceHorizontal(iconRow)
                 val icons = iconNames.mapNotNull { findByIdName(v, it) }
                 if (icons.size >= 2) {
-                    icons.forEach { icon ->
-                        setEqualWeight(icon)
-                        // 图标本身要能看见，别被压成 0
-                        runCatching { icon.minimumWidth = icon.width.coerceAtLeast(1) }
-                    }
+                    // 图标未必直接挂在 iconRow 下（可能每个外面还裹了一层），
+                    // 那样的话在各自的小容器里设 weight 只会得到「两行各两个」。
+                    // 先把它们统一搬到 iconRow 里，再等分。
+                    reparentIcons(icons, iconRow)
+                    icons.forEach { icon -> setEqualWeight(icon) }
                     tinted += "图标行x${icons.size}"
+                    HookEnv.base.log(
+                        Log.WARN, TAG,
+                        "$name: 图标行容器 = ${iconRow::class.java.simpleName}",
+                        null
+                    )
                 }
             }
 
@@ -293,25 +308,82 @@ object UiCleanup : BaseHook() {
 
     /**
      * 让子 View 等分父容器的横向空间。
-     * `weight=1` 只有横向 [LinearLayout] 认；父容器不是的话就退化成撑满，
-     * 至少不会把图标挤成一条缝。
+     *
+     * 这一步之前是坏的：只在父容器「恰好已经是横向 [LinearLayout]」时才设 weight，
+     * 否则退化成 [fillWidth]（`MATCH_PARENT`）——于是 4 个图标各占满一行，看着就是竖排。
+     * 现在改成**先把父容器掰成横向**再设 weight，退化分支只在父容器压根不是
+     * LinearLayout 时才走。
      */
     private fun setEqualWeight(target: View) {
         runCatching {
             val parent = target.parent as? LinearLayout
             val lp = target.layoutParams
-            if (parent != null && parent.orientation == LinearLayout.HORIZONTAL &&
-                lp is LinearLayout.LayoutParams
-            ) {
+            if (parent != null && lp is LinearLayout.LayoutParams) {
+                if (parent.orientation != LinearLayout.HORIZONTAL) {
+                    parent.orientation = LinearLayout.HORIZONTAL
+                }
                 lp.width = 0
                 lp.weight = 1f
                 lp.gravity = Gravity.CENTER
                 target.layoutParams = lp
+                // 图标被拉宽后别被 fitXY 拉变形
+                (target as? ImageView)?.scaleType = ImageView.ScaleType.FIT_CENTER
             } else {
                 fillWidth(target)
             }
             target.requestLayout()
         }
+    }
+
+    /** 把容器切成横向（仅 LinearLayout 有效），返回是否成功 */
+    private fun forceHorizontal(row: View): Boolean {
+        val ll = row as? LinearLayout ?: return false
+        if (ll.orientation != LinearLayout.HORIZONTAL) {
+            ll.orientation = LinearLayout.HORIZONTAL
+        }
+        ll.gravity = Gravity.CENTER_VERTICAL
+        return true
+    }
+
+    /**
+     * 把 4 个图标统一搬进 [row]，保证它们**同属一个横向容器**。
+     *
+     * 商店里这几个图标常被分别裹在自己的小容器里（甚至每个独占一行），
+     * 在各自的小容器里设 weight 永远排不成一行。整体搬家是最直接的办法：
+     * 只动 View 的父子关系，不改任何尺寸，搬完再由 [setEqualWeight] 等分。
+     */
+    private fun reparentIcons(icons: List<View>, row: View) {
+        // 只往 LinearLayout 里搬：换成 ConstraintLayout 之类的容器会因为
+        // 缺少约束直接把图标画成 0 尺寸
+        val host = row as? LinearLayout ?: return
+        icons.forEach { icon ->
+            runCatching {
+                val parent = icon.parent as? ViewGroup
+                if (parent != null && parent !== host) {
+                    parent.removeView(icon)
+                    host.addView(icon)
+                }
+            }
+        }
+    }
+
+    /**
+     * 把卡片在**横向**父容器里撑开：宽度清 0 + weight=1，吃掉同排剩下的空间。
+     * 纵向容器一律不动——在那里加 weight 会让卡片顶满整屏高。
+     */
+    private fun expandInRow(target: View): Boolean {
+        runCatching {
+            val parent = target.parent as? LinearLayout ?: return false
+            if (parent.orientation != LinearLayout.HORIZONTAL) return false
+            val lp = target.layoutParams as? LinearLayout.LayoutParams ?: return false
+            if (lp.width == 0 && lp.weight > 0f) return false
+            lp.width = 0
+            lp.weight = 1f
+            target.layoutParams = lp
+            target.requestLayout()
+            return true
+        }
+        return false
     }
 
     /** 把按钮圆角对齐卡片内边距；只处理粒子白底按钮，不碰图片背景 */

@@ -147,7 +147,22 @@ class SubSettingsActivity : SettingsBaseActivity() {
             checked = readLocal(Settings.KEY_DETAIL_FEATURED, true),
             tag = Settings.KEY_DETAIL_FEATURED
         ) { on -> writeRemote(Settings.KEY_DETAIL_FEATURED, on) }
+        addSwitchRow(
+            group = group,
+            title = "升级记录页推荐",
+            summary = "隐藏「升级记录」底部的精选推荐、热门下载、大家还安装了",
+            checked = readLocal(Settings.KEY_UPDATE_HISTORY, true),
+            tag = Settings.KEY_UPDATE_HISTORY
+        ) { on -> writeRemote(Settings.KEY_UPDATE_HISTORY, on) }
+        addSwitchRow(
+            group = group,
+            title = "搜索页「也在看」",
+            summary = "隐藏搜索结果底部的「搜索 xxx 的人也在看」",
+            checked = readLocal(Settings.KEY_SEARCH_ALSO_VIEW, true),
+            tag = Settings.KEY_SEARCH_ALSO_VIEW
+        ) { on -> writeRemote(Settings.KEY_SEARCH_ALSO_VIEW, on) }
         content.addView(group)
+        addFooter("升级记录与搜索结果按标题文案匹配，改版后可能失效，届时请反馈。")
     }
 
     /** 模块自身：这两项都不参与总开关门控，关闭总开关也不该把它们锁死 */

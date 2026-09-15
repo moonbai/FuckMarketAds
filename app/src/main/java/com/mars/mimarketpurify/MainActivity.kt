@@ -52,7 +52,11 @@ class MainActivity : SettingsBaseActivity() {
 
     /** 二级页「其他界面净化」里的开关 */
     private val miscKeys = listOf(
-        Settings.KEY_SECURITY, Settings.KEY_FRUIT, Settings.KEY_DETAIL_FEATURED
+        Settings.KEY_SECURITY,
+        Settings.KEY_FRUIT,
+        Settings.KEY_DETAIL_FEATURED,
+        Settings.KEY_UPDATE_HISTORY,
+        Settings.KEY_SEARCH_ALSO_VIEW
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -236,7 +240,7 @@ class MainActivity : SettingsBaseActivity() {
         addNavRow(
             group = uiGroup,
             title = "其他界面净化",
-            summary = "应用安全检测、领水果入口、详情页「精选」",
+            summary = "安全检测、领水果、详情页「精选」、升级记录与搜索页推荐",
             value = { countText(miscKeys) }
         ) { openPage(SubSettingsActivity.PAGE_MISC) }
         content.addView(uiGroup)

@@ -9,7 +9,13 @@ import com.mars.mimarketpurify.hooks.market.HideFruitEntry
 import com.mars.mimarketpurify.hooks.market.HomeFeed
 import com.mars.mimarketpurify.hooks.market.RankAds
 import com.mars.mimarketpurify.hooks.market.MainTabAds
+import com.mars.mimarketpurify.hooks.market.DetailExtras
+import com.mars.mimarketpurify.hooks.market.EntranceAds
+import com.mars.mimarketpurify.hooks.market.MineAdGroup
+import com.mars.mimarketpurify.hooks.market.TabBadge
+import com.mars.mimarketpurify.hooks.market.UpdateDialogBlock
 import com.mars.mimarketpurify.hooks.market.MiscApply
+import com.mars.mimarketpurify.hooks.market.RecommendSections
 import com.mars.mimarketpurify.hooks.market.SearchAds
 import com.mars.mimarketpurify.hooks.market.SplashAds
 import com.mars.mimarketpurify.hooks.market.TabFilter
@@ -38,6 +44,13 @@ object Market : AppRegister() {
             TabFilter,
             RankAds,
             UiCleanup,
+            RecommendSections,
+            // 以下为从 XiaomiHelper 补移植的应用商店规则
+            TabBadge,
+            EntranceAds,
+            MineAdGroup,
+            DetailExtras,
+            UpdateDialogBlock,
             EnableSuperIsland,
             MiscApply,
             // 以下为稳定性增强（参考 lisrain/NewFuckMarketAds_Fork）：

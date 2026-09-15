@@ -99,6 +99,15 @@ object Settings {
     const val KEY_DETAIL_FEATURED = "hide_detail_featured"
 
     /**
+     * 「升级记录」页（com.xiaomi.market.ui.UpdateHistoryActivity）底部的三类推荐：
+     * 精选推荐 / 热门下载 / 大家还安装了。
+     */
+    const val KEY_UPDATE_HISTORY = "hide_update_history"
+
+    /** 搜索结果页（SearchActivityPhone）底部的「搜索 xxx 的人也在看」 */
+    const val KEY_SEARCH_ALSO_VIEW = "hide_search_also_view"
+
+    /**
      * 榜单调试：开启后，进入榜单时把**未被识别**的榜单项类型以 Toast 弹出来。
      * 目的是让用户在手机上就能拿到漏网广告的组件类型，而不需要电脑抓 logcat。
      * 默认关闭——它会干扰正常使用，反馈完请关掉。

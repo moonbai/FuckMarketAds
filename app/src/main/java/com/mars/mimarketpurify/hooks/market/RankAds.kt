@@ -440,11 +440,15 @@ object RankAds : BaseHook() {
         val w = if (view.width > 0) view.width else view.measuredWidth
         val h = if (view.height > 0) view.height else view.measuredHeight
         val id = nameOf(view)
+        // 把文本一起打出来：广告角标往往是「标签里那个比别人宽得多的 TextView」，
+        // 光看尺寸猜不出它写的是什么，带上文本才能对症下药。
+        val text = (view as? TextView)?.text?.toString()?.trim().orEmpty()
+        val shown = if (text.isEmpty()) "" else " \"${text.take(24)}\""
         HookEnv.base.log(
             Log.WARN,
             TAG,
             "[rank-tree] ${"· ".repeat(depth)}${view::class.java.simpleName}" +
-                (if (id != null) "#$id" else "") + " ${w}x$h",
+                (if (id != null) "#$id" else "") + " ${w}x$h$shown",
             null
         )
         if (view !is ViewGroup) return
@@ -496,13 +500,19 @@ object RankAds : BaseHook() {
         if (now - lastScanAt < 1500) return
         lastScanAt = now
 
-        runCatching {
-            val list = findListContainer(view) ?: return
-            val count = list.childCount.coerceAtMost(24)
-            for (i in 0 until count) {
-                val item = list.getChildAt(i) ?: continue
-                if (item.visibility != View.VISIBLE) continue
-                if (hasAdLabel(item, 0)) hide(item)
+        // 必须推迟到 attach 之后再找列表容器：onBindData 触发时 itemView
+        // 往往还没挂到 RecyclerView 上（parent 为 null），
+        // findListContainer 直接返回 null，整段扫描等于没跑——
+        // 这正是之前「广告明明写着广告字样却漏网」的原因。
+        view.post {
+            runCatching {
+                val list = findListContainer(view) ?: return@runCatching
+                val count = list.childCount.coerceAtMost(24)
+                for (i in 0 until count) {
+                    val item = list.getChildAt(i) ?: continue
+                    if (item.visibility != View.VISIBLE) continue
+                    if (hasAdLabel(item, 0)) hide(item)
+                }
             }
         }
     }
@@ -513,12 +523,13 @@ object RankAds : BaseHook() {
      * 之所以需要这条：新版商店把榜单 bean 混淆成了 `mi` 这种单字母类名，
      * `getComponentType` 之类的 getter 全部取不到值（日志里表现为 `type=<none>`），
      * 于是基于 bean 关键字的一整套判定直接失效。但**视图层没有混淆**——
-     * 广告项仍然复用 `iv_app_ranking` 画一个比名次数字窄得多的图标。
+     * 实测广告项的 `iv_app_ranking` 是 0x0（正常项 14x39），一眼就能分开。
      *
-     * 两点实现细节：
-     *  1. `onBindData` 阶段 View 往往还没走完 layout，`width` 读出来是 0，
-     *     所以整个测量要 `post` 到下一帧再做；
-     *  2. 加了安全阀：如果一轮里几乎所有项都命中，那多半是阈值定错了，
+     * 三点实现细节：
+     *  1. 容器必须等 attach 之后才找得到，`onBindData` 阶段 `parent` 常常是 null，
+     *     所以整段扫描都推迟到 `view.post` 里，宽度测量再往后推一帧；
+     *  2. 名次图标宽度读到 0 的项**算可疑**，不能静默丢掉——这正是上一版漏广告的原因；
+     *  3. 加了安全阀：如果一轮里几乎所有项都命中，那多半是阈值定错了，
      *     宁可放过也不把整个榜单清空。
      */
     private fun hideByBadgeWidth(view: View) {
@@ -526,9 +537,16 @@ object RankAds : BaseHook() {
         if (now - lastWidthScanAt < 1000) return
         lastWidthScanAt = now
 
-        // 找不到 RecyclerView 时退到直接父容器：绑定点是 item view，它的 parent 就是列表
-        val list = findListContainer(view) ?: (view.parent as? ViewGroup) ?: return
-        list.post { runCatching { scanBadgeWidths(list) } }
+        // 同上：容器要在 attach 之后才找得到，所以整段都放进 post 里。
+        // 宽度要等测量完才读得到，因此再 post 一次（两帧之后基本都测完了）。
+        view.post {
+            runCatching {
+                val list = findListContainer(view)
+                    ?: (view.parent as? ViewGroup)
+                    ?: return@runCatching
+                list.post { runCatching { scanBadgeWidths(list) } }
+            }
+        }
     }
 
     private fun scanBadgeWidths(list: ViewGroup) {
@@ -551,7 +569,14 @@ object RankAds : BaseHook() {
             val badge = findByIdName(item, RANK_BADGE)
             val w = if (badge == null) 0
             else if (badge.width > 0) badge.width else badge.measuredWidth
-            if (w > 0) normal += item to w
+            if (w > 0) {
+                normal += item to w
+            } else {
+                // 有名次数字、名次图标却是 0 宽：实测这就是广告项的形态
+                // （正常项 14x39，广告项 0x0）。
+                // 之前这种项既没进 normal 也没进 suspects，被整段静默忽略了。
+                suspects += item
+            }
         }
 
         val total = normal.size + suspects.size
