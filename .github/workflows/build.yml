@@ -125,7 +125,7 @@ jobs:
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           mkdir -p diag
-          cp ci-report.log "diag/${{ github.run_id }}.log"
-          git add diag
+          cp ci-report.log "diag/run-${{ github.run_id }}.txt"
+          git add -f diag
           git commit -m "diag: run ${{ github.run_id }} [skip ci]"
           git push origin HEAD:master
