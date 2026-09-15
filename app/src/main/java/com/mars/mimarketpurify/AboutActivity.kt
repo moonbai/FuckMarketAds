@@ -14,7 +14,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import android.util.Pair
 
 class AboutActivity : Activity() {
 
@@ -234,8 +233,8 @@ class AboutActivity : Activity() {
 
     private fun buildReferenceProjects() {
         val references = listOf(
-            "NewFuckMarketAds" to Pair("callng", "https://github.com/callng/NewFuckMarketAds"),
-            "NewFuckMarketAds_Fork" to Pair("lisrain", "https://github.com/lisrain/NewFuckMarketAds_Fork")
+            "NewFuckMarketAds" to "callng" to "https://github.com/callng/NewFuckMarketAds",
+            "NewFuckMarketAds_Fork" to "lisrain" to "https://github.com/lisrain/NewFuckMarketAds_Fork"
         )
 
         val card = card()
@@ -244,8 +243,11 @@ class AboutActivity : Activity() {
             setPadding(dp(2), dp(2), dp(2), dp(2))
         }
 
-        references.forEachIndexed { index, (name, pair) ->
-            val (author, url) = pair
+        references.forEachIndexed { index, item ->
+            val name = item.first.first
+            val author = item.first.second
+            val url = item.second
+
             val itemRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -303,7 +305,7 @@ class AboutActivity : Activity() {
                     setBackgroundColor(Ui.DIVIDER)
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(0.5f).coerceAtLeast(1)
+                        dp(1).coerceAtLeast(1)
                     ).also { it.marginStart = dp(14) }
                 })
             }
