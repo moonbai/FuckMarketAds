@@ -16,13 +16,12 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 /**
- * 「关于」页只保留关键信息，全页共两张卡片：
- * 应用卡（版本 / 包名 / 一句话简介，整卡点击跳源码）+ 功能清单，
- * 外加一节「反馈遗漏的广告」，页脚放致谢与免责。
- *
- * 与主页保持同一套结构（固定顶栏 + 内容区滚动）与同一套 [Ui] 令牌。
- * 顶部返回键不再是纤细的文本符号「‹ 返回」，而是 48dp 圆形图标按钮
- * （矢量箭头 + 圆形 ripple），与标题垂直居中，视觉重心和主页顶栏一致。
+ * 「关于」页
+ * 卡片1：应用信息卡片（版本、包名、简介，整卡点击跳转源码仓库）
+ * 卡片2：功能清单
+ * 卡片3：反馈遗漏广告说明
+ * 页脚：上游致谢 + 免责声明
+ * 顶栏：48dp圆形返回图标按钮，和主页视觉统一
  */
 class AboutActivity : Activity() {
 
@@ -39,8 +38,13 @@ class AboutActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Ui.BG)
         }
-        val scroll = ScrollView(this)
-        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+        }
+        content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            spaceBetween = dp(16) // 卡片/区块之间统一间距
+        }
         scroll.addView(content)
 
         root.addView(
@@ -55,13 +59,15 @@ class AboutActivity : Activity() {
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         )
         setContentView(root)
+
+        // 系统栏Insets适配
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
             header.setPadding(dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.top, dp(Ui.PAGE_H), dp(12))
             content.setPadding(
-                dp(Ui.PAGE_H), dp(6), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
+                dp(Ui.PAGE_H), dp(8), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
             )
             insets
         }
@@ -83,22 +89,23 @@ class AboutActivity : Activity() {
 
         addSection("反馈遗漏的广告")
         addCardBody(
-            "榜单各分类（含游戏榜）的列表项由服务端下发，版本差异大。" +
-                "若仍有漏网广告：开启主页「榜单调试提示」，重启商店后抓取 logcat 中 " +
-                "MiMarketPurify 的 `[rank-tree]` 视图树，连同商店版本号反馈即可。"
+            "榜单各分类（含游戏榜）的列表项由服务端下发，版本差异大。\n" +
+            "若仍有漏网广告：开启主页「榜单调试提示」，重启商店后抓取 logcat 中 MiMarketPurify 的 `[rank-tree]` 视图树，连同商店版本号反馈即可。"
         )
 
+        // 页脚致谢免责
         content.addView(TextView(this).apply {
             text = "上游：callng/NewFuckMarketAds、lisrain/NewFuckMarketAds_Fork\n" +
-                "仅供技术研究，使用风险由使用者自行承担。"
+                    "仅供技术研究，使用风险由使用者自行承担。"
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
             setLineSpacing(0f, 1.5f)
-            setPadding(dp(4), dp(4), dp(4), dp(16))
+            setPadding(dp(8), dp(20), dp(8), dp(24))
+            gravity = Gravity.CENTER_HORIZONTAL
         })
     }
 
-    /** 固定顶栏：圆形图标返回键 + 页标题，二者垂直居中 */
+    /** 顶栏：圆形返回图标 + 标题 */
     private fun buildTopBar(header: LinearLayout) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -106,15 +113,13 @@ class AboutActivity : Activity() {
         }
         row.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_back)
-            // 圆形 mask ripple：反馈被裁成圆形，不会溢出成矩形
             setBackgroundResource(R.drawable.bg_icon_ripple)
             scaleType = ImageView.ScaleType.CENTER
             contentDescription = "返回"
             isClickable = true
             isFocusable = true
             layoutParams = LinearLayout.LayoutParams(dp(Ui.TOUCH_MIN), dp(Ui.TOUCH_MIN)).also {
-                // 抵消图标自身的视觉留白，让箭头恰好落在页面 16dp 边距线上
-                it.marginStart = -dp(12)
+                it.marginStart = -dp(8) // 修正负边距，防止图标被裁切
             }
             setOnClickListener { finish() }
         })
@@ -126,10 +131,11 @@ class AboutActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.marginStart = -dp(8) }
+            ).also { it.marginStart = dp(4) }
         })
         header.addView(row)
 
+        // 分割线
         header.addView(View(this).apply {
             setBackgroundColor(Ui.DIVIDER)
             layoutParams = LinearLayout.LayoutParams(
@@ -139,57 +145,66 @@ class AboutActivity : Activity() {
         })
     }
 
-    /** 应用名 / 版本 / 包名卡片：整体可点击并跳转源码仓库 */
+    /**
+     * 应用信息卡片
+     * 布局：左侧预留图标位 + 右侧文本信息 + 末尾跳转箭头
+     * 整张卡片点击打开源码仓库，不再单独一行写“点击查看源码”
+     */
     private fun buildAppCard() {
         val card = card()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
         }
+
+        // 图标占位（后续可以放模块logo）
+        val iconPlaceHolder = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+        }
+
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-            ).also { it.marginEnd = dp(10) }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                it.marginStart = dp(12)
+                it.marginEnd = dp(8)
+            }
         }
+
         info.addView(cardTitle("Mi Market Purify"))
         info.addView(TextView(this).apply {
-            text = "版本 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）"
+            text = "版本 ${BuildConfig.VERSION_NAME}）"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
-            setPadding(0, dp(3), 0, 0)
+            setPadding(0, dp(4), 0, 0)
         })
         info.addView(TextView(this).apply {
             text = packageName
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
-            setPadding(0, dp(3), 0, 0)
+            setPadding(0, dp(4), 0, 0)
         })
-        // 一句话简介直接挂在应用卡里，不再单独占一张卡片
         info.addView(TextView(this).apply {
-            text = "移除小米应用商店各处广告与推荐，并提供可勾选的界面精简选项。" +
-                "无联网、无上报，仅在商店进程内生效。"
+            text = "移除小米应用商店各处广告与推荐，并提供可勾选的界面精简选项。无联网、无上报，仅在商店进程内生效。"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
             setLineSpacing(0f, 1.4f)
             setPadding(0, dp(8), 0, 0)
         })
 
-        row.addView(info)
-        row.addView(TextView(this).apply {
+        // 跳转箭头
+        val arrowTv = TextView(this).apply {
             text = "›"
             textSize = 22f
             setTextColor(Ui.TEXT_TERTIARY)
-        })
-        card.addView(row)
-        card.addView(TextView(this).apply {
-            text = "点击查看源码仓库"
-            textSize = Ui.MICRO
-            setTextColor(Ui.ACCENT)
-            setPadding(0, dp(10), 0, 0)
-        })
+        }
 
-        // 与卡片同圆角的 ripple：明确整张卡片是一个点击目标，且高亮不溢出圆角
+        row.addView(iconPlaceHolder)
+        row.addView(info)
+        row.addView(arrowTv)
+
+        card.addView(row)
         card.tappable(this, R.drawable.bg_card_ripple)
         card.setOnClickListener { openRepo() }
         content.addView(card)
@@ -209,7 +224,9 @@ class AboutActivity : Activity() {
 
     private fun addCardBody(text: String) {
         val card = card()
-        card.addView(cardText(text))
+        card.addView(cardText(text).apply {
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        })
         content.addView(card)
     }
 }
