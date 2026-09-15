@@ -29,7 +29,7 @@ import io.github.libxposed.service.XposedService
  * 布局要点：
  *  - 根布局为纵向 [LinearLayout]：固定顶栏（标题 / 副标题）+ 下方 ScrollView，
  *    因此标题始终可见，滚动只发生在内容区；
- *  - 功能开关按分组放进 [groupCard()] 容器，组内用 [rowDivider()] 分隔，
+ *  - 功能开关按分组放进 [groupCard()] 容器，组内不画分隔线、只用少量留白分行，
  *    而不是每行一张独立卡片——这是 HyperOS 设置的标准形态；
  *  - 每行的「标题 + 摘要 + 开关」整体可点击，点击整行即翻转开关；
  *  - edge-to-edge 的内边距手动分配到顶栏顶部与内容区底部（见 [applySystemBarInsets]）；
@@ -60,6 +60,13 @@ class MainActivity : Activity(), ServiceStateListener {
     private var hideIconSwitch: CompoundButton? = null
     /** “保留哪些标签”的勾选框列表 */
     private val tabChecks = mutableListOf<CheckBox>()
+    /** “保留哪些标签”整块（含小标题），跟随筛选开关显隐 */
+    private var tabSelectBlock: View? = null
+    /**
+     * 受总开关门控的功能行：总开关关闭时整行转灰且不可点。
+     * 只收功能行——总开关自己、模块自身那两行不参与。
+     */
+    private val gatedRows = mutableListOf<SwitchRow>()
 
     /** 按使用场景划分的功能分组 */
     private val categories = listOf(
@@ -147,6 +154,8 @@ class MainActivity : Activity(), ServiceStateListener {
         buildMasterSwitch()
         buildCategories()
         buildModuleSection()
+        // 首次进入就按已保存的总开关状态刷新一次置灰
+        updateGateState()
     }
 
     /**
@@ -237,7 +246,7 @@ class MainActivity : Activity(), ServiceStateListener {
             val t = cb.tag
             cb.isChecked = t is String && kept.contains(t)
         }
-        updateTabChecksEnabled()
+        updateGateState()
         hideIconSwitch?.isChecked = isLauncherIconHidden()
     }
 
@@ -328,10 +337,11 @@ class MainActivity : Activity(), ServiceStateListener {
             title = "总开关",
             summary = "关闭后所有功能均不生效",
             checked = readLocal(Settings.KEY_MASTER, true),
-            tag = Settings.KEY_MASTER
+            tag = Settings.KEY_MASTER,
+            gated = false
         ) { isChecked ->
             writeRemote(Settings.KEY_MASTER, isChecked)
-            updateTabChecksEnabled()
+            updateGateState()
         }
         content.addView(group)
     }
@@ -340,8 +350,7 @@ class MainActivity : Activity(), ServiceStateListener {
         categories.forEach { category ->
             addSectionHeader(category.title, category.subtitle)
             val group = groupCard()
-            category.features.forEachIndexed { index, f ->
-                if (index > 0) group.addView(rowDivider())
+            category.features.forEach { f ->
                 addSwitchRow(
                     group = group,
                     title = f.title,
@@ -350,12 +359,13 @@ class MainActivity : Activity(), ServiceStateListener {
                     tag = f.key
                 ) { checked ->
                     writeRemote(f.key, checked)
-                    if (f.key == Settings.KEY_TAB_FILTER) updateTabChecksEnabled()
+                    if (f.key == Settings.KEY_TAB_FILTER) updateGateState()
                 }
+                // 多选紧跟在自己的开关后面，仍在同一张分组卡片里：
+                // 视觉上属于同一个功能，而不是挂在分组外的另一张卡
+                if (f.key == Settings.KEY_TAB_FILTER) buildTabSelectBlock(group)
             }
             content.addView(group)
-            // 「保留哪些标签」放在整组之后，避免插在行与行之间打断分组的整体感
-            if (category.features.any { it.key == Settings.KEY_TAB_FILTER }) buildTabSelectSection()
         }
     }
 
@@ -368,15 +378,16 @@ class MainActivity : Activity(), ServiceStateListener {
             title = "隐藏桌面图标",
             summary = "仅移除桌面抽屉中的图标，仍可从 LSPosed 模块列表进入主页",
             checked = isLauncherIconHidden(),
-            tag = "hide_launcher_icon"
+            tag = "hide_launcher_icon",
+            gated = false
         ) { hide -> applyHideIcon(hide) }
-        group.addView(rowDivider())
         addSwitchRow(
             group = group,
             title = "榜单调试提示",
-            summary = "开启后进入榜单会弹出未识别的组件类型，用于反馈漏网的广告；用完请关掉",
+            summary = "开启后进入榜单会输出未识别的视图树（logcat 前缀 [rank-tree]），用于反馈漏网的广告；用完请关掉",
             checked = readLocal(Settings.KEY_RANK_DEBUG, false),
-            tag = Settings.KEY_RANK_DEBUG
+            tag = Settings.KEY_RANK_DEBUG,
+            gated = false
         ) { on -> writeRemote(Settings.KEY_RANK_DEBUG, on) }
         content.addView(group)
 
@@ -404,6 +415,8 @@ class MainActivity : Activity(), ServiceStateListener {
      *
      * 开关着色改为 HyperOS 蓝 + 较深的关闭态轨道，解决此前“半透明轨道几乎看不见、
      * 白滑块与浅灰轨道糊在一起”的问题；整行可点，不必再去戳那颗小开关。
+     *
+     * [gated] 为 true 的行会登记进 [gatedRows]，随总开关一起转灰 / 恢复。
      */
     private fun addSwitchRow(
         group: LinearLayout,
@@ -411,6 +424,7 @@ class MainActivity : Activity(), ServiceStateListener {
         summary: String,
         checked: Boolean,
         tag: String,
+        gated: Boolean = true,
         onChanged: (Boolean) -> Unit
     ): CompoundButton {
         val row = row()
@@ -420,8 +434,10 @@ class MainActivity : Activity(), ServiceStateListener {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
             ).also { it.marginEnd = dp(12) }
         }
-        textWrap.addView(rowTitle(title))
-        textWrap.addView(rowSummary(summary))
+        val titleView = rowTitle(title)
+        val summaryView = rowSummary(summary)
+        textWrap.addView(titleView)
+        textWrap.addView(summaryView)
 
         val sw = Switch(this).apply {
             this.tag = tag
@@ -439,22 +455,40 @@ class MainActivity : Activity(), ServiceStateListener {
 
         row.addView(textWrap)
         row.addView(sw)
-        row.tappable(this, borderless = false)
+        // 圆角 ripple：系统默认的矩形高亮会从分组卡片的圆角处溢出成方角
+        row.tappable(this, R.drawable.bg_row_ripple)
         row.setOnClickListener { sw.toggle() }
+        // 组内第二行起留少量间距取代分隔线——不画线，靠留白区分相邻两行
+        if (group.childCount > 0) {
+            (row.layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(Ui.ROW_GAP)
+        }
         group.addView(row)
 
         if (tag == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
+        if (gated) gatedRows += SwitchRow(row, sw, titleView, summaryView)
         return sw
     }
 
-    /** 在筛选开关下方构建“保留哪些标签”的多选列表 */
-    private fun buildTabSelectSection() {
-        val card = card()
-        card.addView(TextView(this).apply {
+    /**
+     * 「保留哪些标签」的多选块：直接插进筛选开关所在的分组卡片，
+     * 紧跟在开关行后面——它是这个开关的选项，不该是分组外的另一张卡片。
+     */
+    private fun buildTabSelectBlock(group: LinearLayout) {
+        val block = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also {
+                it.topMargin = dp(2)
+                it.bottomMargin = dp(8)
+            }
+        }
+        block.addView(TextView(this).apply {
             text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
-            setPadding(0, 0, 0, dp(6))
+            setPadding(dp(Ui.ROW_PAD_H), dp(4), dp(Ui.ROW_PAD_H), dp(2))
         })
 
         TAB_ITEMS.forEach { (tag, label) ->
@@ -464,7 +498,7 @@ class MainActivity : Activity(), ServiceStateListener {
                 setTextColor(Ui.TEXT_PRIMARY)
                 this.tag = tag
                 isChecked = readLocalTabs().contains(tag)
-                setPadding(dp(10), dp(4), dp(4), dp(4))
+                setPadding(dp(Ui.ROW_PAD_H), dp(4), dp(4), dp(4))
                 compoundDrawablePadding = dp(10)
                 minimumHeight = dp(Ui.TOUCH_MIN)
                 // 原生 CheckBox 用系统 accent 色，在白底分组里几乎分辨不清，
@@ -473,9 +507,10 @@ class MainActivity : Activity(), ServiceStateListener {
                 setOnCheckedChangeListener { _, _ -> writeTabSelection() }
             }
             tabChecks.add(cb)
-            card.addView(cb)
+            block.addView(cb)
         }
-        content.addView(card)
+        group.addView(block)
+        tabSelectBlock = block
     }
 
     /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
@@ -484,11 +519,26 @@ class MainActivity : Activity(), ServiceStateListener {
         writeRemoteString(Settings.KEY_TAB_KEEP, kept.joinToString(","))
     }
 
-    /** 根据总开关与“筛选底部标签栏”开关，级联控制勾选框是否可操作 */
-    private fun updateTabChecksEnabled() {
-        val enabled =
-            readLocal(Settings.KEY_MASTER, true) && readLocal(Settings.KEY_TAB_FILTER, true)
-        tabChecks.forEach { it.isEnabled = enabled }
+    /**
+     * 统一的门控刷新：
+     *  - 「筛选底部标签栏」关闭时，其选项（多选块）整体隐藏；
+     *  - 总开关关闭时，所有功能行转灰且不可点，一眼看出当前是整体关闭状态。
+     */
+    private fun updateGateState() {
+        val master = readLocal(Settings.KEY_MASTER, true)
+        val filterOn = readLocal(Settings.KEY_TAB_FILTER, true)
+
+        tabSelectBlock?.visibility = if (filterOn) View.VISIBLE else View.GONE
+        tabChecks.forEach { it.isEnabled = master && filterOn }
+
+        gatedRows.forEach { r ->
+            r.sw.isEnabled = master
+            r.row.isClickable = master
+            r.row.isFocusable = master
+            // 文字切到次级灰而不是降透明度：既表明「已关」，又不至于糊到看不清
+            r.title.setTextColor(if (master) Ui.TEXT_PRIMARY else Ui.TEXT_TERTIARY)
+            r.summary.setTextColor(if (master) Ui.TEXT_SECONDARY else Ui.TEXT_TERTIARY)
+        }
     }
 
     /** 读远程偏好；服务未连接时回落到默认值 */
@@ -568,6 +618,14 @@ class MainActivity : Activity(), ServiceStateListener {
         val title: String,
         val summary: String,
         val default: Boolean
+    )
+
+    /** 一行功能开关的组成部件，供总开关统一置灰时直接改各部分 */
+    private data class SwitchRow(
+        val row: LinearLayout,
+        val sw: CompoundButton,
+        val title: TextView,
+        val summary: TextView
     )
 
     private data class Category(

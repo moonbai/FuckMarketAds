@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    整张卡片（如关于页顶部的仓库卡片）的点击反馈：与卡片同圆角的矩形 mask。
+    用法同 bg_row_ripple，圆角取卡片的 16dp，保证按压高亮与卡片边缘完全贴合。
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#1A000000">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFF" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</ripple>

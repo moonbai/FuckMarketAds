@@ -146,9 +146,13 @@ object RankAds : BaseHook() {
                                     }
                                     else -> {
                                         logUnknownShape(view, bean)
-                                        hideAdSubViews(view)
+                                        // 榜单头部（RankHeaderView）也要抓：广告常常挂在 header 里，
+                                        // 那里既没有排名徽章也没有 bean 类型，前几条判据全都落空
+                                        hideAdViews(view)
+                                        hideHeaderBanner(view)
                                         hideLabelledAds(view)
                                         hideByBadgeWidth(view)
+                                        view.post { runCatching { dumpTree(view) } }
                                     }
                                 }
                             }
@@ -239,16 +243,96 @@ object RankAds : BaseHook() {
             .split(' ')
             .filter { it.isNotEmpty() }
 
-    /** 视图兜底：隐藏 id 命名明显是广告位的直接子视图（仅一层，避免误伤正文） */
-    private fun hideAdSubViews(view: View) {
-        if (view !is ViewGroup) return
-        runCatching {
-            val count = view.childCount.coerceAtMost(16)
-            for (i in 0 until count) {
-                val child = view.getChildAt(i) ?: continue
-                if (isAdResourceName(child)) hide(child)
-            }
+    /**
+     * 视图兜底：递归隐藏「类名或资源 id 命中广告关键字」的子视图。
+     *
+     * 只扫一层是不够的——广告位通常套在两三层容器里。这里递归 5 层，
+     * 每层最多看 24 个子节点；类名判据同样走 [tokens] 分词，
+     * 所以 `HeaderAdapterView` 不会被当成含 "ad" 误杀。
+     */
+    private fun hideAdViews(view: View, depth: Int = 0) {
+        if (depth > 5) return
+        if (depth > 0 && isAdView(view)) {
+            hide(view)
+            return
         }
+        if (view !is ViewGroup) return
+        val count = view.childCount.coerceAtMost(24)
+        for (i in 0 until count) {
+            val child = view.getChildAt(i) ?: continue
+            hideAdViews(child, depth + 1)
+        }
+    }
+
+    private fun isAdView(v: View): Boolean =
+        isAdResourceName(v) || tokens(v::class.java.simpleName).any { it in adTokens }
+
+    /**
+     * 头部 banner：榜单的 `RankHeaderView` 里常塞一条接近满屏宽、宽高比很大的横幅广告。
+     * 这类视图既没有广告字样的 id，也不在列表项里，只能按形状认——
+     * 宽度 ≥ 屏宽 70%、高度 ≥ 56dp、且宽高比 ≥ 3:1。
+     *
+     * 只对名字含 "header" 的容器生效，避免把列表里正常的大图卡片一起干掉。
+     */
+    private fun hideHeaderBanner(view: View) {
+        if (!view::class.java.simpleName.contains("header", true)) return
+        val dm = view.resources.displayMetrics
+        val minW = (dm.widthPixels * 0.7f).toInt()
+        val minH = (56 * dm.density).toInt()
+        runCatching { scanBanners(view, 0, minW, minH) }
+    }
+
+    private fun scanBanners(view: View, depth: Int, minW: Int, minH: Int) {
+        if (depth > 6) return
+        val w = if (view.width > 0) view.width else view.measuredWidth
+        val h = if (view.height > 0) view.height else view.measuredHeight
+        if (depth > 0 && w >= minW && h >= minH && h * 3 <= w) {
+            hide(view)
+            return
+        }
+        if (view !is ViewGroup) return
+        val count = view.childCount.coerceAtMost(24)
+        for (i in 0 until count) {
+            val child = view.getChildAt(i) ?: continue
+            scanBanners(child, depth + 1, minW, minH)
+        }
+    }
+
+    /**
+     * 调试用：把整个视图树（类名 # 资源名 + 实测尺寸）打到 logcat，前缀 `[rank-tree]`。
+     *
+     * 前面几层判据都依赖「猜对关键字」，而商店一改版就可能全猜错。
+     * 与其继续猜，不如把树打出来——看一眼就知道该按哪个 id / 哪个尺寸下手。
+     */
+    private fun dumpTree(view: View) {
+        if (!Settings.isEnabled(Settings.KEY_RANK_DEBUG, false)) return
+        if (!reported.add("tree:" + view::class.java.simpleName)) return
+        logTree(view, 0)
+    }
+
+    private fun logTree(view: View, depth: Int) {
+        if (depth > 6) return
+        val w = if (view.width > 0) view.width else view.measuredWidth
+        val h = if (view.height > 0) view.height else view.measuredHeight
+        val id = nameOf(view)
+        HookEnv.base.log(
+            Log.WARN,
+            TAG,
+            "[rank-tree] ${"· ".repeat(depth)}${view::class.java.simpleName}" +
+                (if (id != null) "#$id" else "") + " ${w}x$h",
+            null
+        )
+        if (view !is ViewGroup) return
+        val count = view.childCount.coerceAtMost(20)
+        for (i in 0 until count) {
+            val child = view.getChildAt(i) ?: continue
+            logTree(child, depth + 1)
+        }
+    }
+
+    private fun nameOf(v: View): String? {
+        if (v.id == View.NO_ID || v.id <= 0) return null
+        return runCatching { v.resources.getResourceEntryName(v.id) }.getOrNull()
     }
 
     private fun isAdResourceName(v: View): Boolean {

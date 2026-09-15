@@ -72,6 +72,8 @@ object Ui {
     const val ROW_MIN_HEIGHT = 52
     const val ROW_PAD_H = 16
     const val ROW_PAD_V = 12
+    /** 组内行间距：不画分隔线，改用少量留白区分相邻两行 */
+    const val ROW_GAP = 4
     /** 最小触摸目标，遵循 Material 48dp 建议 */
     const val TOUCH_MIN = 48
 
@@ -120,15 +122,6 @@ fun Context.row(): LinearLayout = LinearLayout(this).apply {
         LinearLayout.LayoutParams.MATCH_PARENT,
         LinearLayout.LayoutParams.WRAP_CONTENT
     )
-}
-
-/** 组内的行分隔线：从行内边距处起笔，右侧通到边 */
-fun Context.rowDivider(): View = View(this).apply {
-    setBackgroundColor(Ui.DIVIDER)
-    layoutParams = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        dp(1).coerceAtLeast(1)
-    ).also { it.marginStart = dp(Ui.ROW_PAD_H) }
 }
 
 /** 行标题 */
@@ -196,22 +189,28 @@ fun Drawable.tinted(on: Int, off: Int): Drawable {
 }
 
 /**
- * 可点击元素的统一反馈：系统 ripple + 可获焦，并把高度补到至少 48dp
+ * 可点击元素的统一反馈：ripple + 可获焦，并把高度补到至少 48dp
  * 以满足推荐触摸目标尺寸。
+ *
+ * [rippleRes] 建议显式传入圆角 mask 的 drawable（`bg_row_ripple` / `bg_card_ripple`）：
+ * 系统自带的 `?selectableItemBackground` 是**矩形** ripple，叠在圆角卡片上时
+ * 按压高亮会从圆角处溢出成一个方角。
  *
  * 注意：不能直接用 [View.setBackgroundResource] 覆盖背景——那样会把容器已有的
  * 圆角背景连同 padding 一起冲掉。这里用 [LayerDrawable] 把 ripple 叠在
  * 原有背景之上，并在换背景后还原 padding。
  */
-fun View.tappable(context: Context, borderless: Boolean = true) {
-    val attr = if (borderless) {
-        android.R.attr.selectableItemBackgroundBorderless
+fun View.tappable(context: Context, rippleRes: Int = 0) {
+    val resId = if (rippleRes != 0) {
+        rippleRes
     } else {
-        android.R.attr.selectableItemBackground
+        val ta = context.obtainStyledAttributes(
+            intArrayOf(android.R.attr.selectableItemBackground)
+        )
+        val r = ta.getResourceId(0, 0)
+        ta.recycle()
+        r
     }
-    val ta = context.obtainStyledAttributes(intArrayOf(attr))
-    val resId = ta.getResourceId(0, 0)
-    ta.recycle()
 
     if (resId != 0) {
         val ripple = context.getDrawable(resId)

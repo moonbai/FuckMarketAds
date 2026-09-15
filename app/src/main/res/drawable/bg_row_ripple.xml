@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    分组内一行的点击反馈：圆角矩形 mask。
+
+    系统自带的 ?selectableItemBackground 是矩形 ripple，叠在圆角分组卡片上时，
+    按压高亮会从卡片的圆角处溢出成一个方角，非常明显。这里用 12dp 圆角的 mask
+    把反馈裁剪成圆角；只声明 mask、不声明内容，因此背景保持透明，
+    卡片本身的白底圆角不会被覆盖。
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#1A000000">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFF" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</ripple>
