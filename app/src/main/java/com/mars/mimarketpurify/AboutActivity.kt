@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -17,9 +18,9 @@ import androidx.core.view.WindowInsetsCompat
 /**
  * 「关于」页：软件介绍、版本与包名、主要功能、致谢、技术说明、免责声明。
  *
- * 与主主页保持同一套结构（固定顶栏 + 内容区滚动）与同一套 [Ui] 令牌，
- * 让用户在不同页之间来回时不会遇到两套不同的标题高度 / 分隔线 / 反馈方式。
- * 顶部应用卡片整体可点击，直达源码仓库 [Ui.REPO_URL]。
+ * 与主页保持同一套结构（固定顶栏 + 内容区滚动）与同一套 [Ui] 令牌。
+ * 顶部返回键不再是纤细的文本符号「‹ 返回」，而是 48dp 圆形图标按钮
+ * （矢量箭头 + 圆形 ripple），与标题垂直居中，视觉重心和主页顶栏一致。
  */
 class AboutActivity : Activity() {
 
@@ -108,11 +109,19 @@ class AboutActivity : Activity() {
         addCardBody(
             listOf(
                 "Hook 框架：libxposed 101.0.0 + ezXHelper",
-                "主页 UI：原生 View 手写布局，零 UI 框架依赖",
+                "主页 UI：原生 View 手写布局，零 UI 框架依赖，视觉参考 HyperOS / MiuiX",
                 "构建环境：AGP 9.1.0 + JDK 21，compileSdk 36 / minSdk 29",
                 "配置同步：libxposed 远程偏好（Remote Preferences），固定 group 为 settings",
                 "广告识别：命中组件关键字（VideoList / Apps / ad / banner / recommend 等）后隐藏对应容器"
             ).joinToString("\n\n") { "· $it" }
+        )
+
+        addSection("反馈遗漏的广告")
+        addCardBody(
+            "榜单各分类（含游戏榜）的列表项是服务端下发的，不同商店版本差异很大。" +
+                "若某个位置仍有广告，可用 adb 抓取 logcat 中 tag 为 MiMarketPurify 的 " +
+                "“[rank]” 一行（会打印未被识别的组件类型），连同商店版本号一起反馈，" +
+                "即可精确收敛拦截条件。"
         )
 
         addSection("免责声明")
@@ -122,18 +131,24 @@ class AboutActivity : Activity() {
         )
     }
 
-    /** 固定顶栏：返回 + 页标题，与主页保持同样的内边距与分隔线 */
+    /** 固定顶栏：圆形图标返回键 + 页标题，二者垂直居中 */
     private fun buildTopBar(header: LinearLayout) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        row.addView(TextView(this).apply {
-            text = "‹ 返回"
-            textSize = Ui.CAPTION
-            setTextColor(Ui.ACCENT)
-            setPadding(0, dp(4), dp(14), dp(4))
-            tappable(this@AboutActivity)
+        row.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_back)
+            // 圆形 mask ripple：反馈被裁成圆形，不会溢出成矩形
+            setBackgroundResource(R.drawable.bg_icon_ripple)
+            scaleType = ImageView.ScaleType.CENTER
+            contentDescription = "返回"
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(dp(Ui.TOUCH_MIN), dp(Ui.TOUCH_MIN)).also {
+                // 抵消图标自身的视觉留白，让箭头恰好落在页面 16dp 边距线上
+                it.marginStart = -dp(12)
+            }
             setOnClickListener { finish() }
         })
         row.addView(TextView(this).apply {
@@ -141,6 +156,10 @@ class AboutActivity : Activity() {
             textSize = Ui.PAGE_TITLE
             setTypeface(null, Typeface.BOLD)
             setTextColor(Ui.TEXT_PRIMARY)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.marginStart = -dp(8) }
         })
         header.addView(row)
 
@@ -169,7 +188,7 @@ class AboutActivity : Activity() {
         info.addView(cardTitle("Mi Market Purify"))
         info.addView(TextView(this).apply {
             text = "版本 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）"
-            textSize = Ui.CAPTION
+            textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
             setPadding(0, dp(3), 0, 0)
         })

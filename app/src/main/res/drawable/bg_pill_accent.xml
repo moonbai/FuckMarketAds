@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    强调色胶囊按钮（如主页右上角的「关于」）。
+    自带的 ripple 让点击反馈被限制在圆角内；矩形 ripple 会溢出圆角。
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#1F0A84FF">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#140A84FF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</ripple>

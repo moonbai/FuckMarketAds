@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    图标按钮的点击反馈：圆形 mask 把 ripple 裁剪成圆形，背景保持透明。
+    掩码之外不绘制任何东西，因此不会像矩形 ripple 那样溢出圆角。
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#20000000">
+    <item android:id="@android:id/mask">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+</ripple>
