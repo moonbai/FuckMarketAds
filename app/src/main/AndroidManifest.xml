@@ -48,6 +48,16 @@
             android:label="@string/about_title"
             android:exported="false" />
 
+        <!--
+            二级设置页：主页只留高频开关，「我的」页 / 底部标签栏 / 其他净化 / 模块自身
+            各自收在这里。用同一个 Activity，具体显示哪一组由 EXTRA_PAGE 决定，
+            因此不声明 intent-filter，只能由主页显式跳转进入。
+        -->
+        <activity
+            android:name=".SubSettingsActivity"
+            android:theme="@style/AppTheme"
+            android:exported="false" />
+
         <!-- 桌面入口：隐藏/恢复图标时只操作这个 alias -->
         <activity-alias
             android:name=".LauncherAlias"

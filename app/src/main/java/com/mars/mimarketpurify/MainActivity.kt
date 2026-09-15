@@ -1,30 +1,20 @@
 package com.mars.mimarketpurify
 
-import android.app.Activity
-import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
-import android.widget.CheckBox
-import android.widget.CompoundButton
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
 import android.widget.TextView
-import android.widget.Toast
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import com.mars.mimarketpurify.App.ServiceStateListener
-import com.mars.mimarketpurify.Settings.PREFS_GROUP
-import com.mars.mimarketpurify.Settings.TAB_ITEMS
 import io.github.libxposed.service.XposedService
 
 /**
  * 程序主页：**顶栏固定 + 内容区滚动**，整体遵循 HyperOS 风格的分组卡片布局。
+ *
+ * 主页只保留**高频开关**：广告移除这一组，以及功能增强两项。其余按「同一个页面」
+ * 或「带子选项」为维度收进 [SubSettingsActivity]——主页此前近二十行开关需要反复
+ * 滚动才能看全，而其中大半属于「我的」页 / 底部标签栏这类局部设置，平时很少动。
  *
  * 布局要点：
  *  - 根布局为纵向 [LinearLayout]：固定顶栏（标题 / 副标题）+ 下方 ScrollView，
@@ -32,94 +22,38 @@ import io.github.libxposed.service.XposedService
  *  - 功能开关按分组放进 [groupCard()] 容器，组内不画分隔线、只用少量留白分行，
  *    而不是每行一张独立卡片——这是 HyperOS 设置的标准形态；
  *  - 每行的「标题 + 摘要 + 开关」整体可点击，点击整行即翻转开关；
- *  - edge-to-edge 的内边距手动分配到顶栏顶部与内容区底部（见 [applySystemBarInsets]）；
  *  - 所有配色、字号、间距、触摸目标尺寸统一取自 [Ui]。
  *
  * 「隐藏桌面图标」不再禁用本 Activity，而是禁用桌面入口 alias，
  * 保证 LSPosed 等框架始终可以打开主页（详见 manifest 注释）。
  */
-class MainActivity : Activity(), ServiceStateListener {
+class MainActivity : SettingsBaseActivity() {
 
-    private var service: XposedService? = null
-    /** 滚动内容区（顶栏之外） */
-    private lateinit var content: LinearLayout
     private lateinit var titleView: TextView
     private lateinit var statusCard: LinearLayout
     private lateinit var statusTitle: TextView
     private lateinit var statusBody: TextView
 
-    /** 桌面入口 alias 的组件名：隐藏图标时只禁用它 */
-    private val launcherAlias: ComponentName by lazy {
-        ComponentName(this, "$packageName.LauncherAlias")
-    }
-
-    /** 总开关与“筛选底部标签栏”开关的引用，用于级联控制勾选框可用状态 */
-    private var masterSwitch: CompoundButton? = null
-    private var tabFilterSwitch: CompoundButton? = null
-    /** “隐藏桌面图标”开关（独立于远程偏好，直接操作系统组件启用状态） */
-    private var hideIconSwitch: CompoundButton? = null
-    /** “保留哪些标签”的勾选框列表 */
-    private val tabChecks = mutableListOf<CheckBox>()
-    /** “保留哪些标签”整块（含小标题），跟随筛选开关显隐 */
-    private var tabSelectBlock: View? = null
-    /**
-     * 受总开关门控的功能行：总开关关闭时整行转灰且不可点。
-     * 只收功能行——总开关自己、模块自身那两行不参与。
-     */
-    private val gatedRows = mutableListOf<SwitchRow>()
-
-    /** 按使用场景划分的功能分组 */
-    private val categories = listOf(
-        Category(
-            "广告移除", "拦截商店各处的广告与软件推荐", listOf(
-                Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
-                Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗", true),
-                Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏", true),
-                Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果的软件推荐", true),
-                Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
-                Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
-                Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片", true),
-            )
-        ),
-        Category(
-            "界面净化", "清理页面中不需要显示的元素", listOf(
-                Feature(Settings.KEY_SECURITY, "隐藏应用安全检测", "隐藏“我的”页中的应用安全检测视图", true),
-                Feature(Settings.KEY_FRUIT, "屏蔽领水果入口", "隐藏福利活动 gif 动图入口（entrance_gif）", true),
-                Feature(
-                    Settings.KEY_TAB_FILTER, "筛选底部标签栏 / 推广位",
-                    "勾选要保留的标签；同时清理首页顶栏云控推广位", true
-                ),
-                Feature(
-                    Settings.KEY_MINE_RECOMMEND, "「我的」页 · 应用推荐",
-                    "隐藏「我的」页顶部的应用推荐广告位", true
-                ),
-                Feature(
-                    Settings.KEY_MINE_OFFICIAL_TAB, "「我的」页 · 官方入口",
-                    "隐藏「我的」页中间的官方功能入口 tab", true
-                ),
-                Feature(
-                    Settings.KEY_MINE_CLEANUP, "「我的」页 · 清理与卸载",
-                    "隐藏手机清理与应用卸载入口；屏蔽后会把同排的「应用升级」卡片撑满整行", true
-                ),
-                Feature(
-                    Settings.KEY_DETAIL_FEATURED, "隐藏详情页「精选」",
-                    "隐藏应用详情页的「精选」入口（按文案匹配，仅在详情页生效）", true
-                ),
-            )
-        ),
-        Category(
-            "功能增强", "还原被服务端灰度限制的能力", listOf(
-                Feature(Settings.KEY_ISLAND, "启用下载超级岛", "强制让下载进度进入小米超级岛（无视灰度）", true),
-            )
-        ),
-        Category(
-            "细节修正", "清理之外的体验微调", listOf(
-                Feature(Settings.KEY_MISC, "细节修正", "显示非正版 APP、被隐藏更新等细节处理", true),
-            )
-        ),
+    /** 主页直接展示的广告移除开关：这是最常用的核心功能，不再藏进二级页 */
+    private val adFeatures = listOf(
+        Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
+        Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗", true),
+        Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏", true),
+        Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果的软件推荐", true),
+        Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
+        Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
+        Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片", true),
     )
 
-    private val allFeatures: List<Feature> = categories.flatMap { it.features }
+    /** 二级页「「我的」页」里的三个开关，用于在主页入口行显示启用数量 */
+    private val mineKeys = listOf(
+        Settings.KEY_MINE_RECOMMEND, Settings.KEY_MINE_OFFICIAL_TAB, Settings.KEY_MINE_CLEANUP
+    )
+
+    /** 二级页「其他界面净化」里的开关 */
+    private val miscKeys = listOf(
+        Settings.KEY_SECURITY, Settings.KEY_FRUIT, Settings.KEY_DETAIL_FEATURED
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,136 +61,22 @@ class MainActivity : Activity(), ServiceStateListener {
         // 入口自愈：曾被旧版本锁出的设备，覆盖安装后自动恢复
         EntryGuardReceiver.ensureEntryEnabled(this)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Ui.BG)
-        }
-        // 固定顶栏：不随内容滚动
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Ui.BG)
         }
-        val scroll = ScrollView(this)
-        content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        scroll.addView(content)
-
-        root.addView(
-            header,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        // height=0 + weight=1：内容区吃掉剩余高度，滚动只发生在这里
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        )
-        setContentView(root)
-        applySystemBarInsets(root, header)
+        setupRoot(header)
 
         buildHeader(header)
         buildStatusCard()
         buildMasterSwitch()
         buildCategories()
-        buildModuleSection()
+        buildModuleRow()
         // 首次进入就按已保存的总开关状态刷新一次置灰
-        updateGateState()
+        refreshAll()
     }
 
-    /**
-     * edge-to-edge：把状态栏高度加到**固定顶栏**，把导航栏高度加到**内容区底部**，
-     * 这样既不会被系统栏遮挡，也不会因为整页统一 pad 而让顶栏留白失衡。
-     */
-    private fun applySystemBarInsets(root: View, header: LinearLayout) {
-        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            header.setPadding(dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.top, dp(Ui.PAGE_H), dp(12))
-            content.setPadding(
-                dp(Ui.PAGE_H), dp(6), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
-            )
-            insets
-        }
-        ViewCompat.requestApplyInsets(root)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        App.addServiceStateListener(this, true)
-    }
-
-    override fun onStop() {
-        App.removeServiceStateListener(this)
-        super.onStop()
-    }
-
-    override fun onServiceStateChanged(service: XposedService?) {
-        this.service = service
-        runOnUiThread {
-            // 标题即状态灯：已激活转绿，未激活 / 连接中保持品牌橙红
-            titleView.setTextColor(
-                if (service == null) Ui.STATE_INACTIVE else Ui.STATE_ACTIVE
-            )
-            applyStatusCard(service)
-            refreshAll()
-        }
-    }
-
-    /**
-     * 用一张**状态卡**说明模块当前是否可用，取代此前把所有开关调暗 45% 的做法。
-     *
-     * 调暗虽然能表达“暂不生效”，但代价是开关本身几乎看不清。
-     * 现在开关始终保持正常对比度，原因改由这张卡片讲清楚。
-     */
-    private fun applyStatusCard(service: XposedService?) {
-        if (service == null) {
-            statusTitle.text = "模块未激活"
-            statusTitle.setTextColor(Ui.STATE_INACTIVE)
-            statusBody.text =
-                "以下开关暂时改不动远程偏好：请在 LSPosed / 框架中启用本模块，" +
-                    "并在作用域里勾选「应用商店」，然后重启应用商店。"
-            statusCard.background = softBackground(Ui.STATE_INACTIVE_SOFT)
-            return
-        }
-        val remote = service.frameworkProperties and XposedService.PROP_CAP_REMOTE != 0L
-        statusTitle.text = "已激活 · ${service.frameworkName} ${service.frameworkVersion}"
-        statusTitle.setTextColor(Ui.STATE_ACTIVE)
-        statusBody.text = if (remote) {
-            "支持远程偏好：开关改动实时生效，一般无需重启应用商店。"
-        } else {
-            "当前框架不支持远程偏好，开关可能不会立即生效，建议重启一次应用商店。"
-        }
-        statusCard.background = softBackground(Ui.STATE_ACTIVE_SOFT)
-    }
-
-    /** 状态卡的淡色圆角背景 */
-    private fun softBackground(color: Int): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dpf(16f)
-        }
-
-    /** 刷新所有开关的显示状态（框架连接后调用） */
-    private fun refreshAll() {
-        allFeatures.forEach { f ->
-            (content.findViewWithTag<CompoundButton>(f.key))?.isChecked =
-                readLocal(f.key, f.default)
-        }
-        (content.findViewWithTag<CompoundButton>(Settings.KEY_MASTER))?.isChecked =
-            readLocal(Settings.KEY_MASTER, true)
-
-        val kept = readLocalTabs()
-        tabChecks.forEach { cb ->
-            val t = cb.tag
-            cb.isChecked = t is String && kept.contains(t)
-        }
-        updateGateState()
-        hideIconSwitch?.isChecked = isLauncherIconHidden()
-    }
+    // ==================== 顶栏与状态卡 ====================
 
     /** 固定顶栏：大标题 + 副标题 + 右上角强调色胶囊「关于」入口 */
     private fun buildHeader(header: LinearLayout) {
@@ -299,15 +119,7 @@ class MainActivity : Activity(), ServiceStateListener {
             setTextColor(Ui.TEXT_SECONDARY)
             setPadding(0, dp(2), 0, dp(10))
         })
-
-        // 顶栏与滚动区之间的分隔线：明确“这里是固定区域”
-        header.addView(View(this).apply {
-            setBackgroundColor(Ui.DIVIDER)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(1).coerceAtLeast(1)
-            )
-        })
+        header.addView(headerDivider())
     }
 
     /** 内容区顶部的激活状态卡：把“开关能不能用”讲清楚，而不是把它们调暗 */
@@ -338,9 +150,45 @@ class MainActivity : Activity(), ServiceStateListener {
         content.addView(statusCard)
     }
 
+    /**
+     * 用一张**状态卡**说明模块当前是否可用，取代此前把所有开关调暗 45% 的做法。
+     *
+     * 调暗虽然能表达“暂不生效”，但代价是开关本身几乎看不清。
+     * 现在开关始终保持正常对比度，原因改由这张卡片讲清楚。
+     */
+    private fun applyStatusCard(service: XposedService?) {
+        if (service == null) {
+            statusTitle.text = "模块未激活"
+            statusTitle.setTextColor(Ui.STATE_INACTIVE)
+            statusBody.text =
+                "以下开关暂时改不动远程偏好：请在 LSPosed / 框架中启用本模块，" +
+                    "并在作用域里勾选「应用商店」，然后重启应用商店。"
+            statusCard.background = softBackground(Ui.STATE_INACTIVE_SOFT)
+            return
+        }
+        val remote = service.frameworkProperties and XposedService.PROP_CAP_REMOTE != 0L
+        statusTitle.text = "已激活 · ${service.frameworkName} ${service.frameworkVersion}"
+        statusTitle.setTextColor(Ui.STATE_ACTIVE)
+        statusBody.text = if (remote) {
+            "支持远程偏好：开关改动实时生效，一般无需重启应用商店。"
+        } else {
+            "当前框架不支持远程偏好，开关可能不会立即生效，建议重启一次应用商店。"
+        }
+        statusCard.background = softBackground(Ui.STATE_ACTIVE_SOFT)
+    }
+
+    /** 状态卡的淡色圆角背景 */
+    private fun softBackground(color: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dpf(16f)
+        }
+
+    // ==================== 主页内容 ====================
+
     private fun buildMasterSwitch() {
         val group = groupCard()
-        masterSwitch = addSwitchRow(
+        addSwitchRow(
             group = group,
             title = "总开关",
             summary = "关闭后所有功能均不生效",
@@ -355,48 +203,75 @@ class MainActivity : Activity(), ServiceStateListener {
     }
 
     private fun buildCategories() {
-        categories.forEach { category ->
-            addSectionHeader(category.title, category.subtitle)
-            val group = groupCard()
-            category.features.forEach { f ->
-                addSwitchRow(
-                    group = group,
-                    title = f.title,
-                    summary = f.summary,
-                    checked = readLocal(f.key, f.default),
-                    tag = f.key
-                ) { checked ->
-                    writeRemote(f.key, checked)
-                    if (f.key == Settings.KEY_TAB_FILTER) updateGateState()
-                }
-                // 多选紧跟在自己的开关后面，仍在同一张分组卡片里：
-                // 视觉上属于同一个功能，而不是挂在分组外的另一张卡
-                if (f.key == Settings.KEY_TAB_FILTER) buildTabSelectBlock(group)
-            }
-            content.addView(group)
+        // 广告移除：核心功能，直接放在主页
+        addSectionHeader("广告移除", "拦截商店各处的广告与软件推荐")
+        val adGroup = groupCard()
+        adFeatures.forEach { f ->
+            addSwitchRow(
+                group = adGroup,
+                title = f.title,
+                summary = f.summary,
+                checked = readLocal(f.key, f.default),
+                tag = f.key,
+                default = f.default
+            ) { checked -> writeRemote(f.key, checked) }
         }
+        content.addView(adGroup)
+
+        // 界面净化：按页面拆成三张二级页
+        addSectionHeader("界面净化", "按页面拆分，点进去单独调整")
+        val uiGroup = groupCard()
+        addNavRow(
+            group = uiGroup,
+            title = "「我的」页",
+            summary = "应用推荐、官方入口、清理与卸载",
+            value = { countText(mineKeys) }
+        ) { openPage(SubSettingsActivity.PAGE_MINE) }
+        addNavRow(
+            group = uiGroup,
+            title = "底部标签栏",
+            summary = "隐藏不需要的标签，并清理首页顶栏云控推广位",
+            value = { tabsText() }
+        ) { openPage(SubSettingsActivity.PAGE_TABS) }
+        addNavRow(
+            group = uiGroup,
+            title = "其他界面净化",
+            summary = "应用安全检测、领水果入口、详情页「精选」",
+            value = { countText(miscKeys) }
+        ) { openPage(SubSettingsActivity.PAGE_MISC) }
+        content.addView(uiGroup)
+
+        // 功能增强与细节修正：各只有一项，合成一组，不再各自占一个区块
+        addSectionHeader("功能增强", "还原被灰度限制的能力，并做细节修正")
+        val extraGroup = groupCard()
+        addSwitchRow(
+            group = extraGroup,
+            title = "启用下载超级岛",
+            summary = "强制让下载进度进入小米超级岛（无视灰度）",
+            checked = readLocal(Settings.KEY_ISLAND, true),
+            tag = Settings.KEY_ISLAND
+        ) { on -> writeRemote(Settings.KEY_ISLAND, on) }
+        addSwitchRow(
+            group = extraGroup,
+            title = "细节修正",
+            summary = "显示非正版 APP、被隐藏更新等细节处理",
+            checked = readLocal(Settings.KEY_MISC, true),
+            tag = Settings.KEY_MISC
+        ) { on -> writeRemote(Settings.KEY_MISC, on) }
+        content.addView(extraGroup)
     }
 
-    /** 模块自身相关的设置（不参与远程偏好） */
-    private fun buildModuleSection() {
+    /** 模块自身：两项都是低频操作，收进二级页，主页只留一个入口 */
+    private fun buildModuleRow() {
         addSectionHeader("模块自身", "仅影响本模块的显示方式")
         val group = groupCard()
-        hideIconSwitch = addSwitchRow(
+        addNavRow(
             group = group,
-            title = "隐藏桌面图标",
-            summary = "仅移除桌面抽屉中的图标，仍可从 LSPosed 模块列表进入主页",
-            checked = isLauncherIconHidden(),
-            tag = "hide_launcher_icon",
-            gated = false
-        ) { hide -> applyHideIcon(hide) }
-        addSwitchRow(
-            group = group,
-            title = "榜单调试提示",
-            summary = "开启后进入榜单会输出未识别的视图树（logcat 前缀 [rank-tree]），用于反馈漏网的广告；用完请关掉",
-            checked = readLocal(Settings.KEY_RANK_DEBUG, false),
-            tag = Settings.KEY_RANK_DEBUG,
-            gated = false
-        ) { on -> writeRemote(Settings.KEY_RANK_DEBUG, on) }
+            title = "模块自身设置",
+            summary = "隐藏桌面图标、榜单调试提示",
+            gated = false,
+            value = { moduleText() }
+        ) { openPage(SubSettingsActivity.PAGE_MODULE) }
         content.addView(group)
 
         content.addView(TextView(this).apply {
@@ -407,221 +282,33 @@ class MainActivity : Activity(), ServiceStateListener {
         })
     }
 
-    /** 区块标题 + 统一的灰小字说明 */
-    private fun addSectionHeader(title: String, subtitle: String) {
-        content.addView(sectionTitle(title))
-        content.addView(TextView(this).apply {
-            text = subtitle
-            textSize = Ui.MICRO
-            setTextColor(Ui.TEXT_TERTIARY)
-            setPadding(dp(4), 0, 0, dp(6))
-        })
+    // ==================== 入口行摘要 ====================
+
+    /** 「已启用 2/3」：一眼看出二级页里开了几项 */
+    private fun countText(keys: List<String>): String =
+        "已启用 ${keys.count { readLocal(it, true) }}/${keys.size}"
+
+    private fun tabsText(): String {
+        if (!readLocal(Settings.KEY_TAB_FILTER, true)) return "已关闭"
+        val hidden = Settings.TAB_ITEMS.size - readLocalTabs().size
+        return if (hidden <= 0) "未隐藏" else "已隐藏 $hidden 个"
     }
 
-    /**
-     * 统一的一行：「标题 + 摘要 + [Switch]」。
-     *
-     * 开关着色改为 HyperOS 蓝 + 较深的关闭态轨道，解决此前“半透明轨道几乎看不见、
-     * 白滑块与浅灰轨道糊在一起”的问题；整行可点，不必再去戳那颗小开关。
-     *
-     * [gated] 为 true 的行会登记进 [gatedRows]，随总开关一起转灰 / 恢复。
-     */
-    private fun addSwitchRow(
-        group: LinearLayout,
-        title: String,
-        summary: String,
-        checked: Boolean,
-        tag: String,
-        gated: Boolean = true,
-        onChanged: (Boolean) -> Unit
-    ): CompoundButton {
-        val row = row()
-        val textWrap = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-            ).also { it.marginEnd = dp(12) }
-        }
-        val titleView = rowTitle(title)
-        val summaryView = rowSummary(summary)
-        textWrap.addView(titleView)
-        textWrap.addView(summaryView)
-
-        val sw = Switch(this).apply {
-            this.tag = tag
-            isChecked = checked
-            setOnCheckedChangeListener { _, isChecked -> onChanged(isChecked) }
-            // 用自定义的 track / thumb：28dp 高的轨道把 24dp 的白色滑块完整包住，
-            // 系统默认 drawable 的滑块会比轨道高，视觉上像“戳出轨道外”。
-            getDrawable(R.drawable.switch_track)
-                ?.let { trackDrawable = it.tinted(Ui.ACCENT, Ui.SWITCH_TRACK_OFF) }
-            getDrawable(R.drawable.switch_thumb)
-                ?.let { thumbDrawable = it }
-            // 与轨道等宽，保证滑块滑到两端时左右留白对称
-            switchMinWidth = dp(48)
-        }
-
-        row.addView(textWrap)
-        row.addView(sw)
-        // 圆角 ripple：系统默认的矩形高亮会从分组卡片的圆角处溢出成方角
-        row.tappable(this, R.drawable.bg_row_ripple)
-        row.setOnClickListener { sw.toggle() }
-        // 组内第二行起留少量间距取代分隔线——不画线，靠留白区分相邻两行
-        if (group.childCount > 0) {
-            (row.layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(Ui.ROW_GAP)
-        }
-        group.addView(row)
-
-        if (tag == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
-        if (gated) gatedRows += SwitchRow(row, sw, titleView, summaryView)
-        return sw
+    private fun moduleText(): String {
+        val debug = readLocal(Settings.KEY_RANK_DEBUG, false)
+        return if (debug) "调试已开" else "2 项"
     }
 
-    /**
-     * 「保留哪些标签」的多选块：直接插进筛选开关所在的分组卡片，
-     * 紧跟在开关行后面——它是这个开关的选项，不该是分组外的另一张卡片。
-     */
-    private fun buildTabSelectBlock(group: LinearLayout) {
-        val block = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also {
-                it.topMargin = dp(2)
-                it.bottomMargin = dp(8)
-            }
-            // 整块再向右让出 12dp：多选是某个开关的**子选项**，
-            // 缩进去一点才能一眼看出它从属于上面那行，而不是一个平级功能
-            setPadding(dp(12), 0, 0, 0)
-        }
-        block.addView(TextView(this).apply {
-            text = "保留哪些底部标签（取消勾选 = 隐藏该标签）"
-            textSize = Ui.ROW_SUMMARY
-            setTextColor(Ui.TEXT_SECONDARY)
-            setPadding(dp(Ui.ROW_PAD_H), dp(4), dp(Ui.ROW_PAD_H), dp(2))
-        })
-
-        TAB_ITEMS.forEach { (tag, label) ->
-            val cb = CheckBox(this).apply {
-                text = label
-                textSize = Ui.ROW_TITLE
-                setTextColor(Ui.TEXT_PRIMARY)
-                this.tag = tag
-                isChecked = readLocalTabs().contains(tag)
-                setPadding(dp(Ui.ROW_PAD_H), dp(4), dp(4), dp(4))
-                compoundDrawablePadding = dp(10)
-                minimumHeight = dp(Ui.TOUCH_MIN)
-                // 原生 CheckBox 用系统 accent 色，在白底分组里几乎分辨不清，
-                // 这里统一成强调蓝 / 明确的灰
-                buttonDrawable?.let { buttonDrawable = it.tinted(Ui.ACCENT, Ui.CHECK_OFF) }
-                setOnCheckedChangeListener { _, _ -> writeTabSelection() }
-            }
-            tabChecks.add(cb)
-            block.addView(cb)
-        }
-        group.addView(block)
-        tabSelectBlock = block
+    private fun openPage(page: String) {
+        startActivity(SubSettingsActivity.intent(this, page))
     }
 
-    /** 根据勾选框状态，把保留标签写回远程偏好（逗号分隔） */
-    private fun writeTabSelection() {
-        val kept = tabChecks.filter { it.isChecked }.map { it.tag as String }.toSet()
-        writeRemoteString(Settings.KEY_TAB_KEEP, kept.joinToString(","))
-    }
+    // ==================== 刷新 ====================
 
-    /**
-     * 统一的门控刷新：
-     *  - 「筛选底部标签栏」关闭时，其选项（多选块）整体隐藏；
-     *  - 总开关关闭时，所有功能行转灰且不可点，一眼看出当前是整体关闭状态。
-     */
-    private fun updateGateState() {
-        val master = readLocal(Settings.KEY_MASTER, true)
-        val filterOn = readLocal(Settings.KEY_TAB_FILTER, true)
-
-        tabSelectBlock?.visibility = if (filterOn) View.VISIBLE else View.GONE
-        tabChecks.forEach { it.isEnabled = master && filterOn }
-
-        gatedRows.forEach { r ->
-            r.sw.isEnabled = master
-            r.row.isClickable = master
-            r.row.isFocusable = master
-            // 文字切到次级灰而不是降透明度：既表明「已关」，又不至于糊到看不清
-            r.title.setTextColor(if (master) Ui.TEXT_PRIMARY else Ui.TEXT_TERTIARY)
-            r.summary.setTextColor(if (master) Ui.TEXT_SECONDARY else Ui.TEXT_TERTIARY)
-        }
-    }
-
-    /** 读远程偏好；服务未连接时回落到默认值 */
-    private fun readLocal(key: String, def: Boolean): Boolean {
-        return service?.getRemotePreferences(PREFS_GROUP)?.getBoolean(key, def) ?: def
-    }
-
-    /** 写远程偏好；写入失败时给出明确反馈 */
-    private fun writeRemote(key: String, value: Boolean) {
-        val prefs = service?.getRemotePreferences(PREFS_GROUP)
-        if (prefs == null) {
-            Toast.makeText(this, "模块未激活，无法保存", Toast.LENGTH_SHORT).show()
-            return
-        }
-        runCatching {
-            prefs.edit()?.putBoolean(key, value)?.apply()
-        }.onFailure {
-            Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** 读取“保留哪些标签”的集合（逗号分隔字符串解析为 tag 集合） */
-    private fun readLocalTabs(): Set<String> {
-        val raw = service?.getRemotePreferences(PREFS_GROUP)
-            ?.getString(Settings.KEY_TAB_KEEP, Settings.DEFAULT_TAB_KEEP)
-            ?: Settings.DEFAULT_TAB_KEEP
-        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-    }
-
-    /** 写字符串类型远程偏好（用于保存逗号分隔的标签集合） */
-    private fun writeRemoteString(key: String, value: String) {
-        val prefs = service?.getRemotePreferences(PREFS_GROUP)
-        if (prefs == null) {
-            Toast.makeText(this, "模块未激活，无法保存", Toast.LENGTH_SHORT).show()
-            return
-        }
-        runCatching {
-            prefs.edit()?.putString(key, value)?.apply()
-        }.onFailure {
-            Toast.makeText(this, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** 当前桌面图标是否已被隐藏（即桌面入口 alias 被禁用） */
-    private fun isLauncherIconHidden(): Boolean {
-        return runCatching {
-            packageManager.getComponentEnabledSetting(launcherAlias) ==
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-        }.getOrDefault(false)
-    }
-
-    /** 隐藏 / 恢复桌面图标：只切换 alias 组件，MainActivity 始终保持启用 */
-    private fun applyHideIcon(hide: Boolean) {
-        runCatching {
-            EntryGuardReceiver.ensureEntryEnabled(this)
-            val state = if (hide) {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            } else {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            }
-            packageManager.setComponentEnabledSetting(
-                launcherAlias, state, PackageManager.DONT_KILL_APP
-            )
-            Toast.makeText(
-                this,
-                if (hide) "已隐藏桌面图标，可在 LSPosed 模块列表中进入主页"
-                else "已恢复桌面图标",
-                Toast.LENGTH_LONG
-            ).show()
-        }.onFailure {
-            Toast.makeText(this, "操作失败：${it.message}", Toast.LENGTH_SHORT).show()
-        }
+    override fun onRefresh() {
+        // 标题即状态灯：已激活转绿，未激活 / 连接中保持品牌橙红
+        titleView.setTextColor(if (service == null) Ui.STATE_INACTIVE else Ui.STATE_ACTIVE)
+        applyStatusCard(service)
     }
 
     private data class Feature(
@@ -629,19 +316,5 @@ class MainActivity : Activity(), ServiceStateListener {
         val title: String,
         val summary: String,
         val default: Boolean
-    )
-
-    /** 一行功能开关的组成部件，供总开关统一置灰时直接改各部分 */
-    private data class SwitchRow(
-        val row: LinearLayout,
-        val sw: CompoundButton,
-        val title: TextView,
-        val summary: TextView
-    )
-
-    private data class Category(
-        val title: String,
-        val subtitle: String,
-        val features: List<Feature>
     )
 }

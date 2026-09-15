@@ -239,10 +239,11 @@ object RankAds : BaseHook() {
                         .methodFinder()
                         .filterByName(method)
                         .forEach { m ->
+                            // hooked 的 block 返回值即方法返回值（见 BaseHook），
+                            // 这里没有 YukiHookAPI 的 result(...) 可调用，直接返回过滤后的列表
                             m.hooked {
-                                val result = proceed()
-                                val filtered = dropAdComponents(result)
-                                result(if (filtered != null) filtered else result)
+                                val original = proceed()
+                                dropAdComponents(original) ?: original
                             }
                         }
                 }

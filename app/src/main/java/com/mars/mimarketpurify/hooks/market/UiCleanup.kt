@@ -137,7 +137,8 @@ object UiCleanup : BaseHook() {
                     cls.methodFinder()
                         .filterByName(method)
                         .forEach { m ->
-                            m.hooked { result(null) }
+                            // 让皮肤渲染方法直接返回 null（block 返回值即方法返回值）
+                            m.hooked { null }
                         }
                 }
             }.onFailure {
