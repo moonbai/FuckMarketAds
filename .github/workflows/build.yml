@@ -124,6 +124,23 @@ jobs:
       # temporarily add a step that also writes `ci-status/latest.txt` with the
       # outcome + `find app/build/outputs/apk -type f -name '*.apk' -printf '%s\n'`
       # and pushes it with [skip ci]. Green means nothing without the APK bytes.
+      - name: Publish build summary (always)
+        if: always()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          mkdir -p ci-status
+          {
+            echo "run: ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+            echo "sha: ${{ github.sha }}"
+            echo "outcome: ${{ steps.build.outcome }}"
+            echo "apk:"
+            find app/build/outputs/apk -type f -name '*.apk' -printf '  %p %s bytes\n' 2>/dev/null || true
+          } > ci-status/latest.txt
+          git add -f ci-status
+          git commit -m "ci: status run ${{ github.run_id }} [skip ci]"
+          git push origin HEAD:master
+
       - name: Publish diagnostics (failure only)
         if: always() && steps.build.outcome == 'failure'
         run: |
