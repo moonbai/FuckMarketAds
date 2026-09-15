@@ -1,6 +1,7 @@
 package com.mars.mimarketpurify.hooks.market
 
 import android.app.Activity
+import android.graphics.drawable.GradientDrawable
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -152,27 +153,93 @@ object UiCleanup : BaseHook() {
     }
 
     /**
-     * 把 View 拉宽到撑满父容器。
+     * 把「应用升级」卡片拉宽到撑满整行，并**顺带把里面的图标网格重排成一行**。
      *
-     * 三种常见父容器对「撑满」的表达完全不同，写死一种会失效：
-     *  - 普通 ViewGroup：`MATCH_PARENT`；
-     *  - 横向 LinearLayout：还得把 `weight` 清零，否则 weight 会盖掉宽度；
-     *  - ConstraintLayout：`MATCH_PARENT` 无效，要用 `0dp`（match_constraint）。
-     *    这里按类名反射判断，避免为了一个 LayoutParams 去依赖 constraintlayout。
+     * 关键取舍：**不去重建商店自己的图标网格**。
+     * 那个网格是 RecyclerView / 自绘容器，图标 View 很可能被复用、
+     * 事后还会被商店的绑定逻辑改回去——一旦打架就是整块卡片显示错乱。
+     * 更稳的办法是只改容器尺寸，让原本 2 列 2 行的格子**自然**摊成 1 行 4 列。
+     *
+     * 为此做两件事：
+     *  1. 卡片撑满 + 右侧内边距与左对齐，否则图标贴着卡片圆角；
+     *  2. 卡片高度由**内容测量决定**（把固定高度与最小高度清掉），
+     *     否则行数从 2 变 1 之后底部的「一键升级」按钮会被裁掉。
      */
     private fun expand(v: View) {
         runCatching {
-            val lp = v.layoutParams ?: return
-            if (lp.javaClass.name.contains("ConstraintLayout")) {
-                lp.width = 0
-            } else {
-                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+            val heightBefore = v.height
+            val paddingH = v.paddingLeft.coerceAtLeast(v.paddingRight)
+            val lp = v.layoutParams
+            if (lp != null) {
+                // ConstraintLayout 里 MATCH_PARENT 无效，必须用 0dp（match_constraint）
+                lp.width = if (lp.javaClass.name.contains("ConstraintLayout")) 0
+                else ViewGroup.LayoutParams.MATCH_PARENT
+                // 横向 LinearLayout 的 weight 会盖掉宽度，必须清零
                 runCatching { lp.javaClass.getField("weight").set(lp, 0f) }
+                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                v.layoutParams = lp
             }
-            v.layoutParams = lp
+            // 内边距左右对齐，图标不会贴着圆角
+            v.setPadding(paddingH, v.paddingTop, paddingH, v.paddingBottom)
+            clearMinHeight(v)
             v.requestLayout()
+
+            // 高度变了说明行数真的重排了，值得记一笔；没变就别刷日志
+            v.post {
+                runCatching {
+                    if (heightBefore > 0 && v.height != heightBefore) {
+                        HookEnv.base.log(
+                            Log.WARN, TAG,
+                            "$name: 应用升级卡片重排 ${heightBefore}px -> ${v.height}px", null
+                        )
+                    }
+                    roundChildren(v)
+                }
+            }
         }.onFailure {
             HookEnv.base.log(Log.VERBOSE, TAG, "$name: 拉宽失败 ${it.message}", null)
+        }
+    }
+
+    /**
+     * 清掉限制高度的属性。
+     * 注意不能反射调用 `setMinimumHeight` / `setMinimumWidth`——
+     * 那是 View 的 public 方法，在部分 ROM 上会被内联优化掉（NoSuchMethod）。
+     * 只反射自己的字段，失败就放弃（高度已经设成 WRAP_CONTENT，多数情况够用）。
+     */
+    private fun clearMinHeight(v: View) {
+        runCatching {
+            val f = View::class.java.getDeclaredField("mMinHeight")
+            f.isAccessible = true
+            f.setInt(v, 0)
+        }
+    }
+
+    /**
+     * 圆角修正：只处理**圆形/大圆角白底按钮**的反直觉情况——
+     * 卡片内边距变大后仍撑满宽度的按钮，左右会顶到卡片圆角上。
+     * 给它补上等于卡片内边距的圆角半径，视觉上就「坐」进卡片里了。
+     *
+     * 只认背景是 [GradientDrawable] 的 View，不碰商店自己的图片背景。
+     */
+    private fun roundChildren(root: View, depth: Int = 0) {
+        if (depth > 3 || root !is ViewGroup) return
+        val pad = root.paddingLeft
+        val count = root.childCount.coerceAtMost(16)
+        for (i in 0 until count) {
+            val child = root.getChildAt(i) ?: continue
+            runCatching {
+                val bg = child.background
+                if (bg is GradientDrawable && child.width > 0) {
+                    // 只有“已经接近满宽”的按钮才需要收圆角，图标之类不会被误伤
+                    val nearlyFull = child.width >= root.width - 2 * pad - 8
+                    val radius = bg.cornerRadius
+                    if (nearlyFull && radius > 0f && radius < pad) {
+                        bg.cornerRadius = pad.toFloat()
+                    }
+                }
+            }
+            roundChildren(child, depth + 1)
         }
     }
 

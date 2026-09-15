@@ -333,7 +333,13 @@ object RankAds : BaseHook() {
      */
     private fun dumpTree(view: View) {
         if (!Settings.isEnabled(Settings.KEY_RANK_DEBUG, false)) return
-        if (!reported.add("tree:" + view::class.java.simpleName)) return
+        // 去重键要带上「有没有名次数字」这一位：按类名去重的话，
+        // 同类型的第一个 item 会把后面所有 item（包括广告项）全挡掉，
+        // 结果永远只能看到第一棵树，等于白 dump。
+        val hasRank = findByIdName(view, RANK_NUMBER)
+            ?.let { it.visibility == View.VISIBLE && (it.width > 0 || it.measuredWidth > 0) }
+            ?: false
+        if (!reported.add("tree:" + view::class.java.simpleName + ":" + hasRank)) return
         logTree(view, 0)
     }
 
@@ -473,7 +479,7 @@ object RankAds : BaseHook() {
         HookEnv.base.log(
             Log.WARN,
             TAG,
-            "$name: 无可見名次，隐藏 ${suspects.size} 条（$shape）",
+            "$name: 无可见名次，隐藏 ${suspects.size} 条（$shape）",
             null
         )
 
