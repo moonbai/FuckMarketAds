@@ -2,6 +2,7 @@ package com.mars.mimarketpurify
 
 import android.content.Context
 import android.graphics.Typeface
+import android.graphics.drawable.LayerDrawable
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -108,8 +109,13 @@ fun Context.cardTitle(text: String): TextView = TextView(this).apply {
 }
 
 /**
- * 可点击元素的统一反馈：系统 ripple / 高亮背景 + 可获焦，
- * 并把高度补到至少 48dp 以满足推荐触摸目标尺寸。
+ * 可点击元素的统一反馈：系统 ripple + 可获焦，并把高度补到至少 48dp
+ * 以满足推荐触摸目标尺寸。
+ *
+ * 注意：不能直接用 [View.setBackgroundResource] 覆盖背景——那样会把卡片已有的
+ * 白底圆角背景连同 padding 一起冲掉。这里用 [LayerDrawable] 把 ripple 叠在
+ * 原有背景之上，并在换背景后还原 padding，保证「卡片可点击」与「卡片还是卡片」
+ * 两件事同时成立。
  */
 fun View.tappable(context: Context, borderless: Boolean = true) {
     val attr = if (borderless) {
@@ -118,9 +124,24 @@ fun View.tappable(context: Context, borderless: Boolean = true) {
         android.R.attr.selectableItemBackground
     }
     val ta = context.obtainStyledAttributes(intArrayOf(attr))
-    setBackgroundResource(ta.getResourceId(0, 0))
+    val resId = ta.getResourceId(0, 0)
     ta.recycle()
+
+    if (resId != 0) {
+        val ripple = context.getDrawable(resId)
+        if (ripple != null) {
+            val pl = paddingLeft
+            val pt = paddingTop
+            val pr = paddingRight
+            val pb = paddingBottom
+            val prev = background
+            background = if (prev != null) LayerDrawable(arrayOf(prev, ripple)) else ripple
+            setPadding(pl, pt, pr, pb)
+        }
+    }
+
     isClickable = true
     isFocusable = true
-    minHeight = context.dp(Ui.TOUCH_MIN)
+    // View 上没有 minHeight 这个可写属性（不存在 setMinHeight(int)），只有 minimumHeight
+    minimumHeight = context.dp(Ui.TOUCH_MIN)
 }

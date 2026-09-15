@@ -400,7 +400,7 @@ class MainActivity : Activity(), ServiceStateListener {
                 isChecked = readLocalTabs().contains(tag)
                 setPadding(dp(12), dp(4), dp(4), dp(4))
                 compoundDrawablePadding = dp(10)
-                minHeight = dp(Ui.TOUCH_MIN)
+                minimumHeight = dp(Ui.TOUCH_MIN)
                 setOnCheckedChangeListener { _, _ -> writeTabSelection() }
             }
             tabChecks.add(cb)
