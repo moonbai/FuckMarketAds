@@ -22,15 +22,15 @@ class SubSettingsActivity : SettingsBaseActivity() {
 
     companion object {
         const val EXTRA_PAGE = "page"
-        /** 广告移除：从主页搬过来的 7 个核心开关 */
+        /** 广告净化：从主页搬过来的 7 个核心开关 */
         const val PAGE_ADS = "ads"
-        /** 「我的」页的三个开关 */
+        /** 「我的」页精简的三个开关 */
         const val PAGE_MINE = "mine"
         /** 底部标签栏筛选：一个开关 + 一组「保留哪些标签」多选 */
         const val PAGE_TABS = "tabs"
-        /** 其他界面净化项 */
+        /** 其他界面精简项 */
         const val PAGE_MISC = "misc"
-        /** 从 XiaomiHelper 移植过来的商店规则，各自独立开关 */
+        /** 高级净化，从 XiaomiHelper 移植过来的商店规则，各自独立开关 */
         const val PAGE_EXTRA = "extra"
         /** 模块自身设置 */
         const val PAGE_MODULE = "module"
@@ -49,7 +49,7 @@ class SubSettingsActivity : SettingsBaseActivity() {
     private var hideIconSwitch: CompoundButton? = null
 
     /**
-     * 「广告移除」页的开关定义表。
+     * 「广告净化」页的开关定义表。
      * 之前它写在 [MainActivity] 里，现在整组搬过来，两边共用同一份文案。
      */
     private val adFeatures = listOf(
@@ -86,22 +86,22 @@ class SubSettingsActivity : SettingsBaseActivity() {
     }
 
     private fun titleOf(page: String): String = when (page) {
-        PAGE_ADS -> "广告移除"
-        PAGE_MINE -> "「我的」页"
+        PAGE_ADS -> "广告净化"
+        PAGE_MINE -> "「我的」页精简"
         PAGE_TABS -> "底部标签栏"
-        PAGE_MISC -> "其他界面净化"
-        PAGE_EXTRA -> "额外净化"
-        else -> "模块自身"
+        PAGE_MISC -> "其他界面精简"
+        PAGE_EXTRA -> "高级净化"
+        else -> "模块功能"
     }
 
     // ==================== 各组页面 ====================
 
     /**
-     * 广告移除：原本平铺在主页的 7 个开关整组搬到这里。
+     * 广告净化：原本平铺在主页的 7 个开关整组搬到这里。
      * 主页只留一行入口，省下的空间给新功能——主页此前已经长到要反复滚动才看得全。
      */
     private fun buildAds() {
-        addSectionHeader("广告移除", "拦截商店各处的广告与软件推荐")
+        addSectionHeader("广告净化", "拦截商店各处的广告与软件推荐")
         val group = groupCard()
         adFeatures.forEach { f ->
             addSwitchRow(
@@ -116,9 +116,9 @@ class SubSettingsActivity : SettingsBaseActivity() {
         addFooter("屏蔽后若页面空白，多为该页组件被整体过滤，关掉对应开关即可恢复。")
     }
 
-    /** 从 XiaomiHelper 移植的商店规则，原先挂在别的开关下，现在都独立出来 */
+    /** 高级净化：从 XiaomiHelper 移植的商店规则，原先挂在别的开关下，现在都独立出来 */
     private fun buildExtra() {
-        addSectionHeader("额外净化", "移植自 XiaomiHelper 的应用商店规则，各自独立开关")
+        addSectionHeader("高级净化", "深度运营内容、活动入口、弹窗与角标清理")
         val group = groupCard()
         addSwitchRow(
             group = group,
@@ -159,9 +159,9 @@ class SubSettingsActivity : SettingsBaseActivity() {
         addFooter("这些开关会同时作用于「移除升级/下载推荐」等既有功能，关掉后对应位置恢复原样。")
     }
 
-    /** 「我的」页：三个开关同属一个页面，天然适合收在一屏里 */
+    /** 「我的」页精简：三个开关同属一个页面，天然适合收在一屏里 */
     private fun buildMine() {
-        addSectionHeader("「我的」页", "清理「我的」页中不需要的板块")
+        addSectionHeader("「我的」页精简", "清理「我的」页中不需要的板块与推荐")
         val group = groupCard()
         addSwitchRow(
             group = group,
@@ -207,9 +207,9 @@ class SubSettingsActivity : SettingsBaseActivity() {
         addFooter("隐藏标签后需重启一次应用商店才会重建底栏。")
     }
 
-    /** 使用频率较低的界面清理项 */
+    /** 其他界面精简：使用频率较低的界面清理项 */
     private fun buildMisc() {
-        addSectionHeader("其他界面净化", "主页未列出、但仍可单独关闭的清理项")
+        addSectionHeader("其他界面精简", "各类零散页面、弹窗的冗余内容清理")
         val group = groupCard()
         addSwitchRow(
             group = group,
@@ -250,9 +250,9 @@ class SubSettingsActivity : SettingsBaseActivity() {
         addFooter("升级记录与搜索结果按标题文案匹配，改版后可能失效，届时请反馈。")
     }
 
-    /** 模块自身：这两项都不参与总开关门控，关闭总开关也不该把它们锁死 */
+    /** 模块功能：这两项都不参与总开关门控，关闭总开关也不该把它们锁死 */
     private fun buildModule() {
-        addSectionHeader("模块自身", "仅影响本模块的显示方式")
+        addSectionHeader("模块功能", "仅影响本模块的显示方式与调试选项")
         val group = groupCard()
         hideIconSwitch = addSwitchRow(
             group = group,

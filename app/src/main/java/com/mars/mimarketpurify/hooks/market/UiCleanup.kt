@@ -144,7 +144,6 @@ object UiCleanup : BaseHook() {
      * 皮肤本身就是一套自绘背景 + 异形约束，改它的尺寸只会把整套约束搞乱。
      */
     private fun hookOrchardSkin() {
-        if (!Settings.isEnabled(Settings.KEY_MINE_CLEANUP, true)) return
         updateViewClasses.forEach { owner ->
             runCatching {
                 val cls = ClassUtil.loadClass(owner)
