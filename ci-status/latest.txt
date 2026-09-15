@@ -1,6 +1,6 @@
-run     : 34927940278 attempt 1
-sha     : 63d7c0bb0d35cbbaa900c109eb9f4863c2a34505
-outcome : success
+run     : 34928747283 attempt 1
+sha     : ce3d682800c000d444b1907823ed2d8c3bcf1f4c
+outcome : failure
 === produced apk ===
-app/build/outputs/apk/debug/app-debug.apk	7013372 bytes
 === kotlin error lines (e:) ===
+37:e: file:///home/runner/work/MiMarketPurify/MiMarketPurify/app/src/main/java/com/mars/mimarketpurify/apps/Market.kt:39:13 Unresolved reference 'UiCleanup'.
