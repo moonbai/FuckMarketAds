@@ -34,15 +34,10 @@ class MainActivity : SettingsBaseActivity() {
     private lateinit var statusTitle: TextView
     private lateinit var statusBody: TextView
 
-    /** 主页直接展示的广告移除开关：这是最常用的核心功能，不再藏进二级页 */
-    private val adFeatures = listOf(
-        Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
-        Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗", true),
-        Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏", true),
-        Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果的软件推荐", true),
-        Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
-        Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
-        Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片", true),
+    /** 二级页「广告移除」里的 7 个开关，用于在主页入口行显示启用数量 */
+    private val adKeys = listOf(
+        Settings.KEY_SPLASH, Settings.KEY_MAIN_TAB, Settings.KEY_HOME_FEED, Settings.KEY_SEARCH,
+        Settings.KEY_UPDATE_DL, Settings.KEY_DETAIL, Settings.KEY_RANK
     )
 
     /** 二级页「「我的」页」里的三个开关，用于在主页入口行显示启用数量 */
@@ -57,6 +52,15 @@ class MainActivity : SettingsBaseActivity() {
         Settings.KEY_DETAIL_FEATURED,
         Settings.KEY_UPDATE_HISTORY,
         Settings.KEY_SEARCH_ALSO_VIEW
+    )
+
+    /** 二级页「额外净化」里的开关（移植自 XiaomiHelper） */
+    private val extraKeys = listOf(
+        Settings.KEY_TAB_BADGE,
+        Settings.KEY_ENTRANCE,
+        Settings.KEY_MINE_AD_GROUP,
+        Settings.KEY_DETAIL_EXTRAS,
+        Settings.KEY_UPDATE_DIALOG
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -206,25 +210,21 @@ class MainActivity : SettingsBaseActivity() {
         content.addView(group)
     }
 
+    /**
+     * 主页只放**分类入口**，具体开关全部收进二级页。
+     *
+     * 之前主页平铺了近二十行开关，加上新增功能后已经要反复滚动才看得全；
+     * 现在按「同一件事」分成五类，每行显示已启用数量，滚一屏就能看全。
+     */
     private fun buildCategories() {
-        // 广告移除：核心功能，直接放在主页
-        addSectionHeader("广告移除", "拦截商店各处的广告与软件推荐")
-        val adGroup = groupCard()
-        adFeatures.forEach { f ->
-            addSwitchRow(
-                group = adGroup,
-                title = f.title,
-                summary = f.summary,
-                checked = readLocal(f.key, f.default),
-                tag = f.key,
-                default = f.default
-            ) { checked -> writeRemote(f.key, checked) }
-        }
-        content.addView(adGroup)
-
-        // 界面净化：按页面拆成三张二级页
-        addSectionHeader("界面净化", "按页面拆分，点进去单独调整")
+        addSectionHeader("净化设置", "按类别进入，每类都有独立开关")
         val uiGroup = groupCard()
+        addNavRow(
+            group = uiGroup,
+            title = "广告移除",
+            summary = "开屏、前台推荐、信息流、搜索、升级/下载、详情页、榜单",
+            value = { countText(adKeys) }
+        ) { openPage(SubSettingsActivity.PAGE_ADS) }
         addNavRow(
             group = uiGroup,
             title = "「我的」页",
@@ -243,6 +243,12 @@ class MainActivity : SettingsBaseActivity() {
             summary = "安全检测、领水果、详情页「精选」、升级记录与搜索页推荐",
             value = { countText(miscKeys) }
         ) { openPage(SubSettingsActivity.PAGE_MISC) }
+        addNavRow(
+            group = uiGroup,
+            title = "额外净化",
+            summary = "底栏角标、首页活动入口、我的页推广组、详情页附加、升级弹窗",
+            value = { countText(extraKeys) }
+        ) { openPage(SubSettingsActivity.PAGE_EXTRA) }
         content.addView(uiGroup)
 
         // 功能增强与细节修正：各只有一项，合成一组，不再各自占一个区块
@@ -315,10 +321,4 @@ class MainActivity : SettingsBaseActivity() {
         applyStatusCard(service)
     }
 
-    private data class Feature(
-        val key: String,
-        val title: String,
-        val summary: String,
-        val default: Boolean
-    )
 }

@@ -23,7 +23,7 @@ import io.github.kyuubiran.ezxhelper.core.util.ClassUtil
 /** 底部 Tab 的数字角标与「新」字红点 */
 object TabBadge : BaseHook() {
 
-    override val prefKey: String = Settings.KEY_MAIN_TAB
+    override val prefKey: String = Settings.KEY_TAB_BADGE
 
     override val name: String
         get() = "隐藏底栏角标"
@@ -41,7 +41,7 @@ object TabBadge : BaseHook() {
 /** 首页搜索框左侧的动态活动入口（云控下发的小图标 / 动图） */
 object EntranceAds : BaseHook() {
 
-    override val prefKey: String = Settings.KEY_MAIN_TAB
+    override val prefKey: String = Settings.KEY_ENTRANCE
 
     override val name: String
         get() = "屏蔽首页活动入口"
@@ -59,7 +59,7 @@ object EntranceAds : BaseHook() {
 /** 「我的」页底部推广应用列表（数据层直接返回 0 组） */
 object MineAdGroup : BaseHook() {
 
-    override val prefKey: String = Settings.KEY_MINE_RECOMMEND
+    override val prefKey: String = Settings.KEY_MINE_AD_GROUP
 
     override val name: String
         get() = "屏蔽「我的」页推广组"
@@ -81,7 +81,7 @@ object MineAdGroup : BaseHook() {
  */
 object DetailExtras : BaseHook() {
 
-    override val prefKey: String = Settings.KEY_DETAIL
+    override val prefKey: String = Settings.KEY_DETAIL_EXTRAS
 
     override val name: String
         get() = "详情页附加净化"
@@ -127,7 +127,7 @@ object DetailExtras : BaseHook() {
 /** 阻止商店弹出的「升级提醒」对话框 */
 object UpdateDialogBlock : BaseHook() {
 
-    override val prefKey: String = Settings.KEY_UPDATE_DL
+    override val prefKey: String = Settings.KEY_UPDATE_DIALOG
 
     override val name: String
         get() = "阻止升级提醒弹窗"

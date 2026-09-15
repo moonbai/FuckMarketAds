@@ -67,7 +67,13 @@ object SearchAds : BaseHook() {
             }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: 搜索页面拦截失败", it) }
 
-        // 搜索结果页面：仅保留应用列表组件
+        // 搜索结果页面：仅保留应用列表（以及「软件」页签这类同样属于结果集的组件）
+        //
+        // 这里**少保任何一种组件都会误伤**：早期版本只保留 ListAppComponent，
+        // 而结果页另有 AppListComponent / SearchResultComponent 等多种写法，
+        // 版本一变就对不上。现在双条件——组件名**含有** Apps（覆盖
+        // AppsComponent / AppListComponent / ListAppsComponent…），
+        // 或者类名里带 ListAppComponent（兼容老命名）。
         runCatching {
             ClassUtil.loadClass(
                 "com.xiaomi.market.business_ui.search.NativeSearchResultFragment"
@@ -76,11 +82,15 @@ object SearchAds : BaseHook() {
                 .first()
                 .hooked {
                     val result = proceed()
-                    // com.xiaomi.market.common.component.componentbeans.ListAppComponent
                     @Suppress("UNCHECKED_CAST")
-                    return@hooked (result as List<Any>).filter { component ->
-                        component.javaClass.name.contains("ListAppComponent")
+                    val list = result as? List<Any> ?: return@hooked result
+                    val kept = list.filter { component ->
+                        val n = component.javaClass.name
+                        n.contains("AppsComponent") || n.contains("ListAppComponent")
                     }
+                    // 一个都没保住时宁可原样放行：白名单写错的话，
+                    // 结果就变成「列表空白而且一条都搜不到」，比有广告严重得多
+                    return@hooked if (kept.isEmpty()) result else kept
                 }
         }.onFailure { HookEnv.base.log(Log.ERROR, TAG, "$name: 搜索结果拦截失败", it) }
     }

@@ -107,6 +107,21 @@ object Settings {
     /** 搜索结果页（SearchActivityPhone）底部的「搜索 xxx 的人也在看」 */
     const val KEY_SEARCH_ALSO_VIEW = "hide_search_also_view"
 
+    /** 底部标签页的数字角标与「新」字红点 */
+    const val KEY_TAB_BADGE = "hide_tab_badge"
+
+    /** 首页搜索框左侧的云控活动入口 */
+    const val KEY_ENTRANCE = "hide_entrance"
+
+    /** 「我的」页底部推广应用列表 */
+    const val KEY_MINE_AD_GROUP = "hide_mine_ad_group"
+
+    /** 详情页拼装推荐、底部多按钮推广栏、浏览器下载弹窗广告 */
+    const val KEY_DETAIL_EXTRAS = "hide_detail_extras"
+
+    /** 阻止商店弹出的「升级提醒」对话框 */
+    const val KEY_UPDATE_DIALOG = "block_update_dialog"
+
     /**
      * 榜单调试：开启后，进入榜单时把**未被识别**的榜单项类型以 Toast 弹出来。
      * 目的是让用户在手机上就能拿到漏网广告的组件类型，而不需要电脑抓 logcat。

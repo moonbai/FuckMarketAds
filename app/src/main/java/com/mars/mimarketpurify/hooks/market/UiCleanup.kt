@@ -67,6 +67,20 @@ object UiCleanup : BaseHook() {
     /** 已重排过的「应用升级」卡片，避免反复处理同一个视图 */
     private val tunedCards = Collections.synchronizedSet(mutableSetOf<Int>())
 
+    /**
+     * 应用升级卡片**所在的那一行**。
+     *
+     * 实测 `update_layout` 直接挂在 `mine_app_update_layout` 这样的行容器下，
+     * 隐藏「手机清理 / 应用卸载」后空出来的是**那一行**的空间，
+     * 卡片自己不长个宽度——所以必须往上找一层，把行容器本身撑满。
+     * 从卡片往上最多找 3 层，遇到横向 LinearLayout 就认。
+     */
+    private val cardRowNames = listOf(
+        "mine_app_update_layout",
+        "mine_update_layout",
+        "app_update_layout"
+    )
+
     /** 要把内部零件撑到整行宽的应用升级卡片 */
     private val cardIds = listOf("update_layout", "mine_update_layout")
 
@@ -212,7 +226,20 @@ object UiCleanup : BaseHook() {
         if (v.context?.javaClass?.name?.contains("MarketTabActivity") != true) return false
         val id = v.id
         if (id == View.NO_ID || id <= 0) return false
-        return id in idSet(v, "card", cardIds)
+        if (id !in idSet(v, "card", cardIds)) return false
+        // 诊断：卡片自己多大、父容器是什么容器、方向是横向还是纵向。
+        // 上一版就是因为不知道这几件事，才一路改错（父容器不是横向
+        // LinearLayout 时 weight 根本不生效，卡片自然铺不开）。
+        val parent = v.parent as? ViewGroup
+        HookEnv.base.log(
+            Log.WARN, TAG,
+            "$name: 应用升级卡片 ${v.width}x${v.height}，父容器 " +
+                "${parent?.let { it::class.java.simpleName } ?: "<无>"}" +
+                (parent?.let { if (isHorizontal(it)) "(横向)" else "(纵向/未知)" } ?: "") +
+                " ${parent?.width}x${parent?.height}",
+            null
+        )
+        return true
     }
 
     /**
@@ -226,11 +253,14 @@ object UiCleanup : BaseHook() {
      *     不是横向就退化成 `fillWidth`（`MATCH_PARENT`），四个图标于是各占满一行，
      *     看着就是竖排。现在先把容器掰成横向，再把图标搬进来等分。
      *
-     * 具体三步：
-     *  1. **卡片铺满**：父容器是横向 LinearLayout 时给它 `width=0 / weight=1`，
-     *     吃掉清理 / 卸载被隐藏后空出来的那一整块；
+     * 具体四步：
+     *  1. **那一行铺满**：从卡片往上找行容器（`mine_app_update_layout` 等）
+     *     或最近的横向 LinearLayout，给它 `width=0 / weight=1`。
+     *     注意撑满的**不是卡片自己**——卡片宽度由行容器决定，
+     *     行容器不长个，卡片怎么改都没用；
      *  2. **标题行**（`mine_app_update_title_layout`）撑满宽；
-     *  3. **图标行**（`update_icon_layout`）切横向，`app_icon1..4` 搬进去等分；
+     *  3. **图标**：不管原本挂在哪，统一搬进一条横向行再等分
+     *     （沿用它原本的容器，不可用就新建一条）；
      *  4. **一键升级按钮**（`update_button_layout`）撑满并在两侧留出内边距，
      *     圆角对齐卡片内边距，避免顶到卡片圆角上。
      *
@@ -242,30 +272,33 @@ object UiCleanup : BaseHook() {
             val pad = v.paddingLeft.coerceAtLeast(v.paddingRight)
             val tinted = mutableListOf<String>()
 
-            // ① 卡片自己先横向铺开：清理 / 卸载被隐藏后，同排会空出一整块，
-            //    卡片不主动吃下这块空间的话就会缩在最左边。
-            //    只在父容器是**横向** LinearLayout 时动手——纵向容器上设 weight
-            //    会把卡片拉成满屏高，那是上一个版本翻车的样子。
-            if (expandInRow(v)) tinted += "卡片铺满"
+            // ① 横向铺开。关键是**找对那个容器**：要撑满的往往不是卡片本身，
+            //    而是卡片所在的行容器（`mine_app_update_layout` 之类）。
+            //    上一版只改卡片、而且父容器不是横向就直接放弃，所以一直没效果。
+            when (val r = expandRow(v)) {
+                null -> tinted += "铺满失败(找不到横向祖先)"
+                else -> tinted += "铺满:${r::class.java.simpleName}"
+            }
 
             findByIdName(v, titleLayoutId)?.let { fillWidth(it); tinted += "标题行" }
 
-            // ② 图标行：强制横向，并把 4 个图标**搬进这一行**等分
-            val iconRow = findByIdName(v, "update_icon_layout")
-            if (iconRow != null) {
-                fillWidth(iconRow)
-                forceHorizontal(iconRow)
-                val icons = iconNames.mapNotNull { findByIdName(v, it) }
-                if (icons.size >= 2) {
-                    // 图标未必直接挂在 iconRow 下（可能每个外面还裹了一层），
-                    // 那样的话在各自的小容器里设 weight 只会得到「两行各两个」。
-                    // 先把它们统一搬到 iconRow 里，再等分。
-                    reparentIcons(icons, iconRow)
+            // ② 图标：**不管它们原本在哪个容器里**，一律搬进同一个横向容器再等分。
+            //    上一版先把 update_icon_layout 切成横向就撒手，而图标可能压根
+            //    不在里面（或各自裹着自己的容器）——结果还是竖排。
+            //    与其逐层猜结构，不如直接建一个横向行当东家。
+            val icons = iconNames.mapNotNull { findByIdName(v, it) }
+            if (icons.size >= 2) {
+                val row = ensureIconRow(v, icons[0].parent as? LinearLayout)
+                if (row != null) {
+                    row.orientation = LinearLayout.HORIZONTAL
+                    row.gravity = Gravity.CENTER_VERTICAL
+                    reparentIcons(icons, row)
                     icons.forEach { icon -> setEqualWeight(icon) }
                     tinted += "图标行x${icons.size}"
                     HookEnv.base.log(
                         Log.WARN, TAG,
-                        "$name: 图标行容器 = ${iconRow::class.java.simpleName}",
+                        "$name: 图标行 = ${row::class.java.simpleName}（原容器 " +
+                            "${icons[0].parent?.let { (it as? View)?.let { p -> p::class.java.simpleName } }}）",
                         null
                     )
                 }
@@ -335,14 +368,36 @@ object UiCleanup : BaseHook() {
         }
     }
 
-    /** 把容器切成横向（仅 LinearLayout 有效），返回是否成功 */
-    private fun forceHorizontal(row: View): Boolean {
-        val ll = row as? LinearLayout ?: return false
-        if (ll.orientation != LinearLayout.HORIZONTAL) {
-            ll.orientation = LinearLayout.HORIZONTAL
+    /**
+     * 找一条横向 LinearLayout 当图标的「东家」。
+     *
+     * 优先复用图标原本所在的容器（尽量少动结构），但它必须是横向的
+     * LinearLayout——否则在别处新建一条横向行。返回 null 表示这次放弃
+     * （宁可原样不动，也不要把图标搬进一个摆不对的容器里）。
+     */
+    private fun ensureIconRow(card: View, existing: LinearLayout?): LinearLayout? {
+        if (existing != null && existing !== card) {
+            if (existing.orientation != LinearLayout.HORIZONTAL) {
+                existing.orientation = LinearLayout.HORIZONTAL
+            }
+            existing.gravity = Gravity.CENTER_VERTICAL
+            return existing
         }
-        ll.gravity = Gravity.CENTER_VERTICAL
-        return true
+        // 退路：新建一条横向行插进卡片，宽度撑满
+        runCatching {
+            val host = card as? ViewGroup ?: return null
+            val row = LinearLayout(card.context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+            host.addView(row)
+            return row
+        }
+        return null
     }
 
     /**
@@ -353,38 +408,74 @@ object UiCleanup : BaseHook() {
      * 只动 View 的父子关系，不改任何尺寸，搬完再由 [setEqualWeight] 等分。
      */
     private fun reparentIcons(icons: List<View>, row: View) {
-        // 只往 LinearLayout 里搬：换成 ConstraintLayout 之类的容器会因为
-        // 缺少约束直接把图标画成 0 尺寸
-        val host = row as? LinearLayout ?: return
+        val host = row as? ViewGroup ?: return
         icons.forEach { icon ->
             runCatching {
-                val parent = icon.parent as? ViewGroup
-                if (parent != null && parent !== host) {
-                    parent.removeView(icon)
-                    host.addView(icon)
-                }
+                val parent = icon.parent as? ViewGroup ?: return@runCatching
+                if (parent === host) return@runCatching
+                parent.removeView(icon)
+                host.addView(icon)
             }
         }
     }
 
     /**
-     * 把卡片在**横向**父容器里撑开：宽度清 0 + weight=1，吃掉同排剩下的空间。
-     * 纵向容器一律不动——在那里加 weight 会让卡片顶满整屏高。
+     * 把「应用升级」那一行撑满整个宽度。
+     *
+     * 从卡片开始往上找，**最多探 3 层**，命中任一即用：
+     *  1. 名字就是行容器（[cardRowNames]）的祖先；
+     *  2. 最近的横向 LinearLayout 祖先。
+     *
+     * 找到之后只设 `width=0 / weight=1`（吃掉同排剩余空间），**不碰高度**——
+     * 这个改动对卡片还是对行容器都安全。找不到横向祖先就返回 null，
+     * 由调用方记一笔日志，方便下次定位。
      */
-    private fun expandInRow(target: View): Boolean {
+    private fun expandRow(card: View): View? {
         runCatching {
-            val parent = target.parent as? LinearLayout ?: return false
-            if (parent.orientation != LinearLayout.HORIZONTAL) return false
-            val lp = target.layoutParams as? LinearLayout.LayoutParams ?: return false
-            if (lp.width == 0 && lp.weight > 0f) return false
+            var cur: View = card
+            var horizontal: View? = null
+            repeat(3) {
+                val parent = cur.parent as? View ?: return@repeat
+                cur = parent
+                val name = nameOf(parent)
+                if (name != null && cardRowNames.any { it == name }) {
+                    setFillRow(parent)
+                    return parent
+                }
+                if (horizontal == null && isHorizontal(parent)) horizontal = parent
+            }
+            // 直接父容器就是横向的，优先用它（不必再往上找）
+            val direct = card.parent as? View
+            if (direct != null && isHorizontal(direct)) {
+                setFillRow(direct)
+                return direct
+            }
+            // 卡片自己就挂在一行里（前面找到的横向祖先），但它的宽度是固定的，
+            // 这时把**卡片**撑开也有效
+            if (horizontal != null) {
+                setFillRow(horizontal)
+                return horizontal
+            }
+            return null
+        }
+        return null
+    }
+
+    /** 真正设 weight 的地方；已经是 0/1 就跳过，避免无谓的重排 */
+    private fun setFillRow(target: View) {
+        runCatching {
+            val ll = target as? LinearLayout ?: return
+            val lp = ll.layoutParams as? LinearLayout.LayoutParams ?: return
+            if (lp.width == 0 && lp.weight > 0f) return
             lp.width = 0
             lp.weight = 1f
-            target.layoutParams = lp
-            target.requestLayout()
-            return true
+            ll.layoutParams = lp
+            ll.requestLayout()
         }
-        return false
     }
+
+    private fun isHorizontal(v: View): Boolean =
+        (v as? LinearLayout)?.orientation == LinearLayout.HORIZONTAL
 
     /** 把按钮圆角对齐卡片内边距；只处理粒子白底按钮，不碰图片背景 */
     private fun roundButton(btn: View, pad: Int) {

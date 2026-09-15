@@ -22,12 +22,16 @@ class SubSettingsActivity : SettingsBaseActivity() {
 
     companion object {
         const val EXTRA_PAGE = "page"
+        /** 广告移除：从主页搬过来的 7 个核心开关 */
+        const val PAGE_ADS = "ads"
         /** 「我的」页的三个开关 */
         const val PAGE_MINE = "mine"
         /** 底部标签栏筛选：一个开关 + 一组「保留哪些标签」多选 */
         const val PAGE_TABS = "tabs"
         /** 其他界面净化项 */
         const val PAGE_MISC = "misc"
+        /** 从 XiaomiHelper 移植过来的商店规则，各自独立开关 */
+        const val PAGE_EXTRA = "extra"
         /** 模块自身设置 */
         const val PAGE_MODULE = "module"
 
@@ -44,6 +48,20 @@ class SubSettingsActivity : SettingsBaseActivity() {
     /** 「隐藏桌面图标」开关（独立于远程偏好，直接操作系统组件启用状态） */
     private var hideIconSwitch: CompoundButton? = null
 
+    /**
+     * 「广告移除」页的开关定义表。
+     * 之前它写在 [MainActivity] 里，现在整组搬过来，两边共用同一份文案。
+     */
+    private val adFeatures = listOf(
+        Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告"),
+        Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗"),
+        Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏"),
+        Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果的软件推荐"),
+        Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐"),
+        Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位"),
+        Feature(Settings.KEY_RANK, "移除榜单广告", "榜单界面的广告 / 推广卡片")
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         page = intent?.getStringExtra(EXTRA_PAGE) ?: PAGE_MINE
@@ -56,9 +74,11 @@ class SubSettingsActivity : SettingsBaseActivity() {
         buildSubTopBar(header, titleOf(page))
 
         when (page) {
+            PAGE_ADS -> buildAds()
             PAGE_MINE -> buildMine()
             PAGE_TABS -> buildTabs()
             PAGE_MISC -> buildMisc()
+            PAGE_EXTRA -> buildExtra()
             else -> buildModule()
         }
         // 首屏按已保存的偏好刷新一次（框架绑定后还会再刷新一次）
@@ -66,13 +86,78 @@ class SubSettingsActivity : SettingsBaseActivity() {
     }
 
     private fun titleOf(page: String): String = when (page) {
+        PAGE_ADS -> "广告移除"
         PAGE_MINE -> "「我的」页"
         PAGE_TABS -> "底部标签栏"
         PAGE_MISC -> "其他界面净化"
+        PAGE_EXTRA -> "额外净化"
         else -> "模块自身"
     }
 
     // ==================== 各组页面 ====================
+
+    /**
+     * 广告移除：原本平铺在主页的 7 个开关整组搬到这里。
+     * 主页只留一行入口，省下的空间给新功能——主页此前已经长到要反复滚动才看得全。
+     */
+    private fun buildAds() {
+        addSectionHeader("广告移除", "拦截商店各处的广告与软件推荐")
+        val group = groupCard()
+        adFeatures.forEach { f ->
+            addSwitchRow(
+                group = group,
+                title = f.title,
+                summary = f.summary,
+                checked = readLocal(f.key, true),
+                tag = f.key
+            ) { on -> writeRemote(f.key, on) }
+        }
+        content.addView(group)
+        addFooter("屏蔽后若页面空白，多为该页组件被整体过滤，关掉对应开关即可恢复。")
+    }
+
+    /** 从 XiaomiHelper 移植的商店规则，原先挂在别的开关下，现在都独立出来 */
+    private fun buildExtra() {
+        addSectionHeader("额外净化", "移植自 XiaomiHelper 的应用商店规则，各自独立开关")
+        val group = groupCard()
+        addSwitchRow(
+            group = group,
+            title = "隐藏底栏角标",
+            summary = "去掉底部标签页的数字角标与「新」字红点",
+            checked = readLocal(Settings.KEY_TAB_BADGE, true),
+            tag = Settings.KEY_TAB_BADGE
+        ) { on -> writeRemote(Settings.KEY_TAB_BADGE, on) }
+        addSwitchRow(
+            group = group,
+            title = "屏蔽首页活动入口",
+            summary = "隐藏搜索框左侧云控下发的活动小图标 / 动图",
+            checked = readLocal(Settings.KEY_ENTRANCE, true),
+            tag = Settings.KEY_ENTRANCE
+        ) { on -> writeRemote(Settings.KEY_ENTRANCE, on) }
+        addSwitchRow(
+            group = group,
+            title = "「我的」页推广组",
+            summary = "在数据层让底部推广应用列表直接返回空",
+            checked = readLocal(Settings.KEY_MINE_AD_GROUP, true),
+            tag = Settings.KEY_MINE_AD_GROUP
+        ) { on -> writeRemote(Settings.KEY_MINE_AD_GROUP, on) }
+        addSwitchRow(
+            group = group,
+            title = "详情页附加净化",
+            summary = "详情页拼装推荐、底部多按钮推广栏、浏览器下载弹窗广告",
+            checked = readLocal(Settings.KEY_DETAIL_EXTRAS, true),
+            tag = Settings.KEY_DETAIL_EXTRAS
+        ) { on -> writeRemote(Settings.KEY_DETAIL_EXTRAS, on) }
+        addSwitchRow(
+            group = group,
+            title = "阻止升级提醒弹窗",
+            summary = "不再弹出应用商店的升级提醒对话框",
+            checked = readLocal(Settings.KEY_UPDATE_DIALOG, true),
+            tag = Settings.KEY_UPDATE_DIALOG
+        ) { on -> writeRemote(Settings.KEY_UPDATE_DIALOG, on) }
+        content.addView(group)
+        addFooter("这些开关会同时作用于「移除升级/下载推荐」等既有功能，关掉后对应位置恢复原样。")
+    }
 
     /** 「我的」页：三个开关同属一个页面，天然适合收在一屏里 */
     private fun buildMine() {
@@ -269,4 +354,7 @@ class SubSettingsActivity : SettingsBaseActivity() {
         tabSelectBlock?.visibility = if (filterOn) View.VISIBLE else View.GONE
         tabChecks.forEach { it.isEnabled = master && filterOn }
     }
+
+    /** 二级页里的开关条目；主页与二级页共用同一份定义 */
+    data class Feature(val key: String, val title: String, val summary: String)
 }

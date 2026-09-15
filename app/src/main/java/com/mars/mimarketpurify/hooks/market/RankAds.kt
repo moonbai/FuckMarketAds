@@ -425,13 +425,10 @@ object RankAds : BaseHook() {
      */
     private fun dumpTree(view: View) {
         if (!Settings.isEnabled(Settings.KEY_RANK_DEBUG, false)) return
-        // 去重键要带上「有没有名次数字」这一位：按类名去重的话，
-        // 同类型的第一个 item 会把后面所有 item（包括广告项）全挡掉，
-        // 结果永远只能看到第一棵树，等于白 dump。
-        val hasRank = findByIdName(view, RANK_NUMBER)
-            ?.let { it.visibility == View.VISIBLE && (it.width > 0 || it.measuredWidth > 0) }
-            ?: false
-        if (!reported.add("tree:" + view::class.java.simpleName + ":" + hasRank)) return
+        // 去重键只按类名：一屏里同类 item 往往出现在同一帧，
+        // 后面那些 item 可能还没绑完数据，按尺寸区分会漏掉真正的广告项；
+        // 内容不同的一帧照样会重新 dump，滚动时反而覆盖得更全。
+        if (!reported.add("tree:" + view::class.java.simpleName)) return
         logTree(view, 0)
     }
 
