@@ -41,6 +41,13 @@
             </intent-filter>
         </activity>
 
+        <!-- 关于页：不声明 intent-filter，只能由主页显式跳转进入 -->
+        <activity
+            android:name=".AboutActivity"
+            android:theme="@style/AppTheme"
+            android:label="@string/about_title"
+            android:exported="false" />
+
         <!-- 桌面入口：隐藏/恢复图标时只操作这个 alias -->
         <activity-alias
             android:name=".LauncherAlias"

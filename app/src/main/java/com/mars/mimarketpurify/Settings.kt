@@ -31,7 +31,7 @@ object Settings {
     /** 禁止前台/主页广告与推荐（MarketTabActivity 相关） */
     const val KEY_MAIN_TAB = "main_tab_ads"
 
-    /** 隐藏主页信息流广告低栏 / 热词 */
+    /** 隐藏主页信息流广告 / 热词 */
     const val KEY_HOME_FEED = "home_feed_ads"
 
     /** 搜索相关推荐（建议 / 搜索页 / 搜索结果） */

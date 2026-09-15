@@ -10,6 +10,7 @@
 -keep class io.github.libxposed.service.** { *; }
 -keep class com.mars.mimarketpurify.App { *; }
 -keep class com.mars.mimarketpurify.MainActivity { *; }
+-keep class com.mars.mimarketpurify.AboutActivity { *; }
 
 # Kotlin
 -assumenosideeffects class kotlin.jvm.internal.Intrinsics {

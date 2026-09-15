@@ -2,9 +2,11 @@ package com.mars.mimarketpurify
 
 import android.app.Activity
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -35,6 +37,12 @@ class MainActivity : Activity(), ServiceStateListener {
     private var service: XposedService? = null
     private lateinit var container: LinearLayout
     private lateinit var statusView: TextView
+    /** 主页标题：颜色随模块激活状态变化（已激活绿 / 未激活橙红） */
+    private lateinit var titleView: TextView
+
+    /** 标题色：未激活（含连接中）用品牌橙红，已激活用成功绿 */
+    private val colorTitleInactive = 0xFFFF6B35.toInt()
+    private val colorTitleActive = 0xFF34C759.toInt()
 
     /** 桌面入口 alias 的组件名：隐藏图标时只禁用它 */
     private val launcherAlias: ComponentName by lazy {
@@ -55,7 +63,7 @@ class MainActivity : Activity(), ServiceStateListener {
             "广告移除", "拦截商店各处的广告与软件推荐", listOf(
                 Feature(Settings.KEY_SPLASH, "移除开屏广告", "屏蔽应用商店启动时的开屏广告", true),
                 Feature(Settings.KEY_MAIN_TAB, "禁止前台广告/推荐", "屏蔽主页切换时的推荐与广告弹窗", true),
-                Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告低栏", "隐藏主页底部视频/应用推荐与热词栏", true),
+                Feature(Settings.KEY_HOME_FEED, "隐藏信息流广告", "隐藏主页底部视频/应用推荐与热词栏", true),
                 Feature(Settings.KEY_SEARCH, "移除搜索推荐", "搜索建议、搜索页、搜索结果中的软件推荐", true),
                 Feature(Settings.KEY_UPDATE_DL, "移除升级/下载推荐", "应用升级页与下载页的软件推荐", true),
                 Feature(Settings.KEY_DETAIL, "移除详情页广告", "应用详情页的广告、评论与推荐位", true),
@@ -143,6 +151,10 @@ class MainActivity : Activity(), ServiceStateListener {
     override fun onServiceStateChanged(service: XposedService?) {
         this.service = service
         runOnUiThread {
+            // 标题即状态灯：已激活转绿，未激活 / 连接中保持品牌橙红
+            titleView.setTextColor(
+                if (service == null) colorTitleInactive else colorTitleActive
+            )
             if (service == null) {
                 statusView.text = "模块未激活：请在 LSPosed / 框架中启用本模块并勾选作用域"
             } else {
@@ -179,15 +191,47 @@ class MainActivity : Activity(), ServiceStateListener {
     }
 
     private fun buildHeader() {
-        container.addView(TextView(this).apply {
-            text = "Fuck Market Ads"
+        // 标题与“关于”入口同一行：标题占满剩余宽度并把按钮挤到右侧
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        titleView = TextView(this).apply {
+            text = "Mi Market Purify"
             textSize = 24f
             setTypeface(null, Typeface.BOLD)
-            setTextColor(0xFFFF6B35.toInt())
-            setPadding(0, 0, 0, dp(2))
+            setTextColor(colorTitleInactive)
+            // weight=1 且 width=0：让标题吃掉剩余空间，避免“关于”被推到屏幕外
+            layoutParams =
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        headerRow.addView(titleView)
+
+        headerRow.addView(TextView(this).apply {
+            text = "关于"
+            textSize = 13f
+            setTextColor(0xFF007AFF.toInt())
+            setPadding(dp(12), dp(6), dp(4), dp(6))
+            isClickable = true
+            isFocusable = true
+            val ta = this@MainActivity.obtainStyledAttributes(
+                intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
+            )
+            setBackgroundResource(ta.getResourceId(0, 0))
+            ta.recycle()
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, AboutActivity::class.java))
+            }
         })
+        container.addView(headerRow)
+
         container.addView(TextView(this).apply {
-            text = "小米应用商店去广告"
+            text = "小米应用商店净化与增强"
             textSize = 13f
             setTextColor(0xFF8E8E93.toInt())
             setPadding(0, 0, 0, dp(8))
