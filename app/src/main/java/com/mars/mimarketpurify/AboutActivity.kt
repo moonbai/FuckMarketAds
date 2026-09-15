@@ -15,13 +15,6 @@ import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
-/**
- * 「关于」页
- * 1. 应用信息卡：顶部左侧引用应用图标
- * 2. 功能卡：功能列表改为卡片式展示
- * 3. 移除“反馈遗漏的广告”模块
- * 4. 新增参考项目卡，分栏展示参考项目
- */
 class AboutActivity : Activity() {
 
     private lateinit var content: LinearLayout
@@ -45,27 +38,14 @@ class AboutActivity : Activity() {
         }
         scroll.addView(content)
 
-        root.addView(
-            header,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        )
+        root.addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             header.setPadding(dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.top, dp(Ui.PAGE_H), dp(12))
-            content.setPadding(
-                dp(Ui.PAGE_H), dp(8), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom
-            )
+            content.setPadding(dp(Ui.PAGE_H), dp(8), dp(Ui.PAGE_H), dp(Ui.PAGE_H) + bars.bottom)
             insets
         }
         ViewCompat.requestApplyInsets(root)
@@ -79,9 +59,9 @@ class AboutActivity : Activity() {
         addSection("参考项目")
         buildReferenceProjects()
 
+        // 4. 底部文字
         content.addView(TextView(this).apply {
-            text = "上游：callng/NewFuckMarketAds、lisrain/NewFuckMarketAds_Fork\n" +
-                    "仅供技术研究，使用风险由使用者自行承担。"
+            text = "不乱拉屎的应用商店才是好的应用商店@Mars"
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
             setLineSpacing(0f, 1.5f)
@@ -102,9 +82,7 @@ class AboutActivity : Activity() {
             contentDescription = "返回"
             isClickable = true
             isFocusable = true
-            layoutParams = LinearLayout.LayoutParams(dp(Ui.TOUCH_MIN), dp(Ui.TOUCH_MIN)).also {
-                it.marginStart = -dp(8)
-            }
+            layoutParams = LinearLayout.LayoutParams(dp(Ui.TOUCH_MIN), dp(Ui.TOUCH_MIN)).also { it.marginStart = -dp(8) }
             setOnClickListener { finish() }
         })
         row.addView(TextView(this).apply {
@@ -112,25 +90,15 @@ class AboutActivity : Activity() {
             textSize = Ui.PAGE_TITLE
             setTypeface(null, Typeface.BOLD)
             setTextColor(Ui.TEXT_PRIMARY)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.marginStart = dp(4) }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginStart = dp(4) }
         })
         header.addView(row)
-
         header.addView(View(this).apply {
             setBackgroundColor(Ui.DIVIDER)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(1).coerceAtLeast(1)
-            )
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1).coerceAtLeast(1))
         })
     }
 
-    /**
-     * 应用信息卡：左侧引用应用图标，右侧为应用信息
-     */
     private fun buildAppCard() {
         val card = card()
         val row = LinearLayout(this).apply {
@@ -139,9 +107,10 @@ class AboutActivity : Activity() {
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
 
+        // 1. 应用图标变大：48dp → 64dp
         val appIcon = ImageView(this).apply {
-            setImageResource(R.mipmap.ic_launcher) // 引用应用图标
-            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            setImageResource(R.mipmap.ic_launcher)
+            layoutParams = LinearLayout.LayoutParams(dp(64), dp(64))
             scaleType = ImageView.ScaleType.CENTER_INSIDE
         }
 
@@ -154,24 +123,18 @@ class AboutActivity : Activity() {
         }
 
         info.addView(cardTitle("Mi Market Purify"))
+        // 1. 副标题精简：去掉包名，只保留版本+一句话描述
         info.addView(TextView(this).apply {
-            text = "版本 ${BuildConfig.VERSION_NAME}"
+            text = "v${BuildConfig.VERSION_NAME}"
             textSize = Ui.ROW_SUMMARY
             setTextColor(Ui.TEXT_SECONDARY)
             setPadding(0, dp(4), 0, 0)
         })
         info.addView(TextView(this).apply {
-            text = packageName
+            text = "移除小米应用商店广告与推荐信息"
             textSize = Ui.MICRO
             setTextColor(Ui.TEXT_TERTIARY)
             setPadding(0, dp(4), 0, 0)
-        })
-        info.addView(TextView(this).apply {
-            text = "移除小米应用商店广告、推荐及部分干扰信息"
-            textSize = Ui.ROW_SUMMARY
-            setTextColor(Ui.TEXT_SECONDARY)
-            setLineSpacing(0f, 1.4f)
-            setPadding(0, dp(8), 0, 0)
         })
 
         val arrowTv = TextView(this).apply {
@@ -183,17 +146,12 @@ class AboutActivity : Activity() {
         row.addView(appIcon)
         row.addView(info)
         row.addView(arrowTv)
-
         card.addView(row)
         card.tappable(this, R.drawable.bg_card_ripple)
         card.setOnClickListener { openRepo() }
         content.addView(card)
     }
 
-    /**
-     * 功能区改为卡片式展示
-     * 每一项功能独立成一张小卡
-     */
     private fun buildFeatureCards() {
         val features = listOf(
             "广告移除" to "开屏、前台推荐、信息流、搜索、升级/下载页、详情页、榜单、顶栏推广位",
@@ -212,7 +170,6 @@ class AboutActivity : Activity() {
             card.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(14), dp(16), dp(14))
-
                 addView(cardTitle(title))
                 addView(TextView(this@AboutActivity).apply {
                     text = desc
@@ -223,12 +180,10 @@ class AboutActivity : Activity() {
                 })
             })
 
+            // 2. 卡片间距：10dp → 8dp
             if (index > 0) {
-                card.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also {
-                    it.topMargin = dp(10)
+                card.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
+                    it.topMargin = dp(8)
                 }
             }
 
@@ -238,76 +193,59 @@ class AboutActivity : Activity() {
         content.addView(container)
     }
 
-    /**
-     * 参考项目卡片，分栏展示
-     * 这里用两列 Grid 思路；原生 View 下用 LinearLayout 嵌套实现
-     */
+    // 3. 只保留前两个参考项目，添加跳转链接
     private fun buildReferenceProjects() {
         val references = listOf(
-            "NewFuckMarketAds" to "callng",
-            "NewFuckMarketAds_Fork" to "lisrain",
-            "MiMarketPurify" to "参考项目"
+            "NewFuckMarketAds" to Triple("callng", "https://github.com/callng/NewFuckMarketAds"),
+            "NewFuckMarketAds_Fork" to Triple("lisrain", "https://github.com/lisrain/NewFuckMarketAds_Fork")
         )
 
         val card = card()
-        val columnCount = 2
-
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
 
-        for (i in references.indices step columnCount) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-            }
-
-            for (j in 0 until columnCount) {
-                val position = i + j
-                if (position < references.size) {
-                    val (name, desc) = references[position]
-                    row.addView(LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
-                            if (j > 0) it.marginStart = dp(10)
-                        }
-                        setPadding(dp(12), dp(12), dp(12), dp(12))
-                        setBackgroundColor(Ui.BG)
-
-                        addView(TextView(this@AboutActivity).apply {
-                            text = name
-                            textSize = Ui.ROW_SUMMARY
-                            setTypeface(null, Typeface.BOLD)
-                            setTextColor(Ui.TEXT_PRIMARY)
-                        })
-                        addView(TextView(this@AboutActivity).apply {
-                            text = desc
-                            textSize = Ui.MICRO
-                            setTextColor(Ui.TEXT_SECONDARY)
-                            setLineSpacing(0f, 1.4f)
-                            setPadding(0, dp(4), 0, 0)
-                        })
-                    })
-                } else {
-                    // ✅修复：必须写 row.addView()，不能直接addView
-                    row.addView(View(this).apply {
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    })
-                }
-            }
-
-            if (i > 0) {
-                row.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also {
-                    it.topMargin = dp(10)
-                }
-            }
-
-            outer.addView(row)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
         }
 
+        references.forEachIndexed { index, (name, triple) ->
+            val (author, url) = triple
+            row.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also {
+                    if (index > 0) it.marginStart = dp(10)
+                }
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                setBackgroundColor(Ui.BG)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }.onFailure {
+                        Toast.makeText(this@AboutActivity, "无法打开链接：${it.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                addView(TextView(this@AboutActivity).apply {
+                    text = name
+                    textSize = Ui.ROW_SUMMARY
+                    setTypeface(null, Typeface.BOLD)
+                    setTextColor(Ui.TEXT_PRIMARY)
+                })
+                addView(TextView(this@AboutActivity).apply {
+                    text = author
+                    textSize = Ui.MICRO
+                    setTextColor(Ui.TEXT_SECONDARY)
+                    setLineSpacing(0f, 1.4f)
+                    setPadding(0, dp(4), 0, 0)
+                })
+            })
+        }
+
+        outer.addView(row)
         card.addView(outer)
         content.addView(card)
     }
@@ -322,10 +260,7 @@ class AboutActivity : Activity() {
 
     private fun addSection(title: String) {
         val titleView = sectionTitle(title)
-        titleView.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).also {
+        titleView.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).also {
             it.topMargin = dp(16)
         }
         content.addView(titleView)
