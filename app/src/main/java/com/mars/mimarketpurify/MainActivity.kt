@@ -224,67 +224,74 @@ class MainActivity : SettingsBaseActivity() {
     /**
      * 主页只放**分类入口**，具体开关全部收进二级页。
      *
-     * 之前主页平铺了近二十行开关，加上新增功能后已经要反复滚动才看得全；
-     * 现在按「同一件事」分成五类，每行显示已启用数量，滚一屏就能看全。
+     * 按功能划分为四大块：广告净化、界面精简、高级功能、模块功能。
+     * - 广告净化：纯粹的各类广告、推荐内容移除
+     * - 界面精简：首页、底栏、我的页、零散页面的布局与冗余项清理
+     * - 高级功能：深度运营内容净化 + 常驻的功能增强开关
+     * - 模块功能：本模块自身的设置项
+     * 【仅调整主页分组、标题、顺序、section；所有Key、二级页、计数逻辑无改动】
      */
     private fun buildCategories() {
-        addSectionHeader("净化设置", "按类别进入，每类都有独立开关")
+        addSectionHeader("净化设置", "广告与界面冗余内容清理")
         val uiGroup = groupCard()
         addNavRow(
             group = uiGroup,
-            title = "广告移除",
-            summary = "开屏、前台推荐、信息流、搜索、升级/下载、详情页、榜单",
+            title = "广告净化",
+            summary = "开屏、首页信息流、榜单、搜索、下载升级、应用详情广告",
             value = { countText(adKeys) }
         ) { openPage(SubSettingsActivity.PAGE_ADS) }
+    
         addNavRow(
             group = uiGroup,
-            title = "「我的」页",
-            summary = "应用推荐、官方入口、清理与卸载",
-            value = { countText(mineKeys) }
-        ) { openPage(SubSettingsActivity.PAGE_MINE) }
-        addNavRow(
-            group = uiGroup,
-            title = "底部标签栏",
-            summary = "隐藏不需要的标签，并清理首页顶栏云控推广位",
+            title = "首页与标签栏",
+            summary = "管理底部标签、清理首页云控推广位",
             value = { tabsText() }
         ) { openPage(SubSettingsActivity.PAGE_TABS) }
+    
         addNavRow(
             group = uiGroup,
-            title = "其他界面净化",
-            summary = "安全检测、领水果、详情页「精选」、升级记录与搜索页推荐",
+            title = "「我的」页精简",
+            summary = "我的页应用推荐、官方入口、清理板块",
+            value = { countText(mineKeys) }
+        ) { openPage(SubSettingsActivity.PAGE_MINE) }
+    
+        addNavRow(
+            group = uiGroup,
+            title = "其他界面精简",
+            summary = "安全检测、领水果、升级记录、搜索相关推荐等零散页面",
             value = { countText(miscKeys) }
         ) { openPage(SubSettingsActivity.PAGE_MISC) }
+        content.addView(uiGroup)
+    
+        addSectionHeader("高级功能", "深度净化与功能增强")
+        val advancedGroup = groupCard()
         addNavRow(
-            group = uiGroup,
-            title = "额外净化",
-            summary = "底栏角标、首页活动入口、我的页推广组、详情页附加、升级弹窗",
+            group = advancedGroup,
+            title = "高级净化",
+            summary = "运营弹窗、活动入口、角标、详情页附加推广",
             value = { countText(extraKeys) }
         ) { openPage(SubSettingsActivity.PAGE_EXTRA) }
-        content.addView(uiGroup)
-
-        // 功能增强与细节修正：各只有一项，合成一组，不再各自占一个区块
-        addSectionHeader("功能增强", "还原被灰度限制的能力，并做细节修正")
-        val extraGroup = groupCard()
+    
         addSwitchRow(
-            group = extraGroup,
+            group = advancedGroup,
             title = "启用下载超级岛",
             summary = "强制让下载进度进入小米超级岛（无视灰度）",
             checked = readLocal(Settings.KEY_ISLAND, true),
             tag = Settings.KEY_ISLAND
         ) { on -> writeRemote(Settings.KEY_ISLAND, on) }
         addSwitchRow(
-            group = extraGroup,
+            group = advancedGroup,
             title = "细节修正",
             summary = "显示非正版 APP、被隐藏更新等细节处理",
             checked = readLocal(Settings.KEY_MISC, true),
             tag = Settings.KEY_MISC
         ) { on -> writeRemote(Settings.KEY_MISC, on) }
-        content.addView(extraGroup)
+        content.addView(advancedGroup)
     }
-
-    /** 模块自身：两项都是低频操作，收进二级页，主页只留一个入口 */
+    
+    /** 模块自身：独立成「模块功能」区块 */
     private fun buildModuleRow() {
-        addSectionHeader("模块自身", "仅影响本模块的显示方式")
+        addSectionHeader("模块功能", "仅影响本模块的显示与调试")
         val group = groupCard()
         addNavRow(
             group = group,
@@ -294,7 +301,7 @@ class MainActivity : SettingsBaseActivity() {
             value = { moduleText() }
         ) { openPage(SubSettingsActivity.PAGE_MODULE) }
         content.addView(group)
-
+    
         content.addView(TextView(this).apply {
             text = "开关即时生效，无需重启；若个别 ROM 缓存了远程偏好，重启一次应用商店即可。"
             textSize = Ui.MICRO
@@ -302,7 +309,7 @@ class MainActivity : SettingsBaseActivity() {
             setPadding(dp(4), dp(2), dp(4), dp(16))
         })
     }
-
+    
     // ==================== 入口行摘要 ====================
 
     /** 「已启用 2/3」：一眼看出二级页里开了几项 */

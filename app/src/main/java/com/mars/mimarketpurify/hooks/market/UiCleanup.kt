@@ -152,15 +152,21 @@ object UiCleanup : BaseHook() {
                     cls.methodFinder()
                         .filterByName(method)
                         .forEach { m ->
-                            // 让皮肤渲染方法直接返回 null（block 返回值即方法返回值）
-                            m.hooked { null }
+                            m.hooked {
+                                val result = proceed()
+                                (thisObject as? View)?.let { view ->
+                                    view.background = null
+                                    view.setPadding(0, 0, 0, 0)
+                                }
+                                result
+                            }
                         }
                 }
             }.onFailure {
                 HookEnv.base.log(Log.VERBOSE, TAG, "$name: 无 $owner，跳过果园皮肤处理", null)
             }
         }
-    }
+    }     
 
     private fun hookActivityRescan(className: String) {
         runCatching {
