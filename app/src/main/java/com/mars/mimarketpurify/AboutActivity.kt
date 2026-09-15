@@ -289,7 +289,8 @@ class AboutActivity : Activity() {
                         })
                     })
                 } else {
-                    addView(View(this).apply {
+                    // ✅修复：必须写 row.addView()，不能直接addView
+                    row.addView(View(this).apply {
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     })
                 }
