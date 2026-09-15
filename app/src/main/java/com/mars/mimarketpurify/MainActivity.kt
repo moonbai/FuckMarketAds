@@ -357,6 +357,12 @@ class MainActivity : Activity(), ServiceStateListener {
         row.addView(textWrap)
         row.addView(sw)
         card.addView(row)
+
+        // 整卡可点：与关于页“整卡即点击目标”保持一致，
+        // 而不是只有右侧那颗小 Switch 才响应点击。
+        card.tappable(this, borderless = false)
+        card.setOnClickListener { sw.toggle() }
+
         content.addView(card)
 
         if (tag == Settings.KEY_TAB_FILTER) tabFilterSwitch = sw
